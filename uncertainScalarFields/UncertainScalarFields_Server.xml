@@ -1,0 +1,121 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="sources">
+    <!-- ================================================================== -->
+    <SourceProxy name="Generate Uncertain Scalar Fields" class="UncertainScalarFields" label="Generate Uncertain Scalar Fields">
+      <Documentation
+	  long_help="Generates multiple Sclar Fields with randomness"
+	  short_help="Generates multiple Scalar Fields">
+	Generates multiple Scalar Fields with randomness on every value.
+      </Documentation>
+      
+      <InputProperty
+	  name="Input"
+	  command="SetInputConnection"
+	  null_on_empty="1"
+	  port_index="0">
+	<Hints>
+	  <Optional />
+	</Hints>
+	<!-- clean_command="RemoveAllInputs"> -->
+	<ProxyGroupDomain name="groups">
+	  <Group name="sources"/>
+	  <Group name="filters"/>
+	</ProxyGroupDomain>
+	<DataTypeDomain name="input_type">
+	  <DataType value="null"/>
+	</DataTypeDomain>
+	
+	<Documentation>
+	  Generates multiple Scalar Fields with randomness on every value.
+	</Documentation>
+      </InputProperty>
+      
+      <DoubleVectorProperty
+	  name="Grid origin"
+	  command="Setorigin_grid"
+	  number_of_elements="3"
+	  default_values="0 0 0">
+	<Documentation>
+	  Origin of grid.
+	</Documentation>
+      </DoubleVectorProperty>
+
+			<IntVectorProperty
+    name="Shift X"
+    command="SetshiftX"
+    number_of_elements="1"
+    default_values="0">
+      <BooleanDomain name="bool"/>
+  <Documentation>
+  	Uncertainty along X-Axis
+  </Documentation>
+      </IntVectorProperty>
+
+			<IntVectorProperty
+    name="Shift Y"
+    command="SetshiftY"
+    number_of_elements="1"
+    default_values="0">
+      <BooleanDomain name="bool"/>
+  <Documentation>
+  	Uncertainty along Y-Axis
+  </Documentation>
+      </IntVectorProperty>
+
+			<IntVectorProperty
+    name="Shift Z"
+    command="SetshiftZ"
+    number_of_elements="1"
+    default_values="0">
+      <BooleanDomain name="bool"/>
+  <Documentation>
+  	Uncertainty along Z-Axis
+  </Documentation>
+      </IntVectorProperty>
+      
+      <DoubleVectorProperty
+	  name="Grid bounds"
+	  command="Setbounds_grid"
+	  number_of_elements="3"
+	  default_values="10.0 10.0 5.0">
+	<Documentation>
+	  Size of grid.
+	</Documentation>
+      </DoubleVectorProperty>
+      
+      <DoubleVectorProperty
+	  name="Grid dimension"
+	  command="Setresolution_grid"
+	  number_of_elements="3"
+	  default_values="20.0 20.0 10.0">
+	<Documentation>
+	  Resolution of grid.
+	</Documentation>
+      </DoubleVectorProperty>
+
+			<IntVectorProperty
+		name="Number of Fields"
+		command="SetnumOfFields"
+		number_of_elements="1"
+		default_values="10">
+	<Documentation>
+	Number of fields generated
+	</Documentation>
+			</IntVectorProperty>
+
+			<DoubleVectorProperty
+		name="Noise Level"
+		command="Setnoise"
+		number_of_elements="2"
+		default_values="-0.5 0.5">
+	<Documentation>
+	  Range of noise added.
+	</Documentation>
+      </DoubleVectorProperty>
+      
+      <OutputPort name="UncertainScalarField" index="0" id="port0" />
+      
+    </SourceProxy>
+  </ProxyGroup>
+  <!-- End Filters Group -->
+</ServerManagerConfiguration>
