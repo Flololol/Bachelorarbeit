@@ -75,8 +75,8 @@ public:
     vtkSetMacro(calcCertain, bool);
     vtkGetMacro(calcCertain, bool);
 
-    vtkSetMacro(debug, bool);
-    vtkGetMacro(debug, bool);
+    vtkSetMacro(useNewMethod, bool);
+    vtkGetMacro(useNewMethod, bool);
 
     vtkSetMacro(useRandomSeed, bool);
     vtkGetMacro(useRandomSeed, bool);
@@ -87,17 +87,11 @@ public:
     vtkSetClampMacro(evThresh, double, 0.001, 1.0);
     vtkGetMacro(evThresh, double);
 
-    vtkSetClampMacro(evSim, double, 0.001, 0.999);
-    vtkGetMacro(evSim, double);
-
-    vtkSetClampMacro(evMin, double, 0.0, 30.0);
+    vtkSetMacro(evMin, double);
     vtkGetMacro(evMin, double);
 
-    vtkSetClampMacro(crossTol, double, 0.0001, 3.0);
+    vtkSetClampMacro(crossTol, double, 0.0, 3.0);
     vtkGetMacro(crossTol, double);
-
-    vtkSetClampMacro(ampli, double, 0.0001, 3.0);
-    vtkGetMacro(ampli, double);
 
 protected:
     UncertainRidges();
@@ -114,21 +108,24 @@ protected:
 private:
     vtkSmartPointer<vtkImageData> data;
     vtkDoubleArray *extrProbability;
-    vtkDoubleArray *ridgeProbability;
-    vtkDoubleArray *valleyProbability;
+    //vtkDoubleArray *ridgeProbability;
+    //vtkDoubleArray *valleyProbability;
     vtkSmartPointer<vtkDoubleArray> gradVecs;
     vtkSmartPointer<vtkDoubleArray> eps1;
     vtkSmartPointer<vtkDoubleArray> eps2;
     vtkSmartPointer<vtkDoubleArray> eps3;
-    vtkSmartPointer<vtkDoubleArray> dotPs;
-    std::vector<Vector80d> meanVectors;
-    std::vector<Vector24d> meanVectors2D;
-    std::vector<std::vector<Vector80d>> accumulatedField;
-    std::vector<std::vector<Vector24d>> accumulatedField2D;
-    std::vector<std::vector<Vector80d>> sampleField;
-    std::vector<std::vector<Vector24d>> sampleField2D;
-    std::vector<Matrix80d> decompositionField;
-    std::vector<Matrix24d> decompositionField2D;
+    vtkSmartPointer<vtkDoubleArray> lambda1;
+    vtkSmartPointer<vtkDoubleArray> lambda2;
+    vtkSmartPointer<vtkDoubleArray> lambda3;
+    //std::vector<Vector80d> meanVectors;
+    //std::vector<Vector24d> meanVectors2D;
+    //std::vector<std::vector<Vector80d>> accumulatedField;
+    //std::vector<std::vector<Vector24d>> accumulatedField2D;
+    //std::vector<std::vector<Vector80d>> sampleField;
+    //std::vector<std::vector<Vector24d>> sampleField2D;
+    //std::vector<Matrix80d> decompositionField;
+    //std::vector<Matrix24d> decompositionField2D;
+    
 
     int numSamples;
     int extremum;
@@ -137,25 +134,22 @@ private:
     int *gridResolution;
     int offsetY;
     int offsetZ;
+    int currentField;
     int arrayLength;
     nanoClock::time_point beginning;
-    char *ridgeName;
-    char *valleyName;
     char *extrName;
     bool computeLines;
     bool useRandomSeed;
     bool useCholesky;
     std::mt19937 gen;
     double evThresh;
-    double evSim;
     double evMin;
     double crossTol;
-    double ampli;
     double spaceMag;
     bool is2D;
     int test;
     int sampleTest;
-    bool debug;
+    bool useNewMethod;
     bool calcCertain;
 
     bool isCloseToEdge(int index);
@@ -165,7 +159,7 @@ private:
     void computeGradients(Vector80d sampleVector, vec3 *gradients, mat3 *hessians, vec3 *secGrads, bool calcSec=false);
     //std::vector<std::tuple<Vector2d, Vector2d, Matrix2d>> computeGradients2D(Vector24d sampleVector);
     void computeGradients2D(Vector24d sampleVector, vec2 *gradients, mat2 *hessians, vec2 *secGrads);
-    bool computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads);
+    double computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads);
     //int computeParVectors2D(std::vector<std::tuple<Vector2d, Vector2d, Matrix2d>> cell);
     bool computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     double computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads);

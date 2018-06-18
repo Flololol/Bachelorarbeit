@@ -23,7 +23,6 @@
 #include <random>
 #include "math.h"
 
-//blubb
 
 vtkStandardNewMacro(UncertainScalarFields)
 
@@ -140,7 +139,7 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
     data->SetExtent(extent_grid);
 
     vtkSmartPointer<vtkXMLImageDataWriter> writer = vtkSmartPointer<vtkXMLImageDataWriter>::New();
-    string file_name = "/export/home/ffallenb/Bachelorarbeit/ScalarFields/uncertain_scalar_field";
+    string file_name = "/home/flo/Bachelorarbeit/ScalarFields/uncertain_scalar_field";
     uniform_real_distribution<double> random_value(noise[0], noise[1]);
     uniform_int_distribution<int> rand_int(0, 1);
     std::random_device rd;
@@ -176,6 +175,7 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                     //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
 
                     scalars ->SetTuple1(tupleIndex, value);
+                    //scalars ->SetTuple1(tupleIndex, double(tupleIndex));
                     tupleIndex++;
                 }
             }

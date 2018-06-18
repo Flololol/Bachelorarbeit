@@ -5,8 +5,6 @@ vtkStandardNewMacro(UncertainRidges);
 UncertainRidges::UncertainRidges() {
 
     this->extrName = (char *) "Extremum Probability";
-    this->ridgeName = (char *) "Ridge Line Probability";
-    this->valleyName = (char *) "Valley Line Probability";
     this->SetNumberOfInputPorts(1);
     this->SetNumberOfOutputPorts(2);
     this->SetInputArrayToProcess(0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS,
@@ -26,11 +24,11 @@ int UncertainRidges::FillOutputPortInformation(int port, vtkInformation *info) {
     
     if (port == 0) {
         info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkImageData");
-        //return 1;
     } 
     if (port == 1) {
         info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkImageData");
     }
+
     return 1;
 }
 
@@ -65,6 +63,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
     vtkSmartPointer<vtkMultiBlockDataSet> input = vtkMultiBlockDataSet::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
     int numFields = input->GetNumberOfBlocks();
+    cout << "Calculating ridge criteria" << endl;
 
     this->data = vtkSmartPointer<vtkImageData>::New();
     data->ShallowCopy(vtkImageData::SafeDownCast(input->GetBlock(0)));
@@ -73,70 +72,85 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     this->bounds = data->GetBounds(); 
     this->spacing = data->GetSpacing();
     this->spaceMag = vec3mag(spacing);
-    cout << "Spacing: " << spacing[0] << " - " << spacing[1] << " - " << spacing[2] << endl;
     this->gridResolution = data->GetDimensions();
     this->arrayLength = gridResolution[0] * gridResolution[1] * gridResolution[2];
     this->offsetY = gridResolution[0];
     this->offsetZ = gridResolution[0] * gridResolution[1];
     int coutStep = int(double(arrayLength) / 100.0);
+    if(coutStep == 0) coutStep = 1;
+    currentField = int(outputVector->GetInformationObject(0)->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()));
 
     gradVecs = vtkSmartPointer<vtkDoubleArray>::New();
+    gradVecs->SetName("Gradients");
+    gradVecs->SetNumberOfComponents(3);
+    gradVecs->SetNumberOfTuples(arrayLength);
     eps1 = vtkSmartPointer<vtkDoubleArray>::New();
     eps1->SetName("eps1");
+    eps1->SetNumberOfComponents(3);
+    eps1->SetNumberOfTuples(arrayLength);
     eps2 = vtkSmartPointer<vtkDoubleArray>::New();
     eps2->SetName("eps2");
-    dotPs = vtkSmartPointer<vtkDoubleArray>::New();
-    dotPs->SetName("lambda1");
-    dotPs->SetNumberOfComponents(1);
-    dotPs->SetNumberOfTuples(arrayLength);
-    
-    gradVecs->SetName("Gradients");
+    eps2->SetNumberOfComponents(3);
+    eps2->SetNumberOfTuples(arrayLength);
+    lambda1 = vtkSmartPointer<vtkDoubleArray>::New();
+    lambda1->SetName("lambda1");
+    lambda1->SetNumberOfComponents(1);
+    lambda1->SetNumberOfTuples(arrayLength);
+    lambda2 = vtkSmartPointer<vtkDoubleArray>::New();
+    lambda2->SetName("lambda2");
+    lambda2->SetNumberOfComponents(1);
+    lambda2->SetNumberOfTuples(arrayLength);    
     
     if((bounds[5] - bounds[4]) == 0){
         is2D = true;
-        accumulatedField2D = std::vector<std::vector<Vector24d>>(numFields, std::vector<Vector24d>(arrayLength, Vector24d::Zero()));
-        meanVectors2D = std::vector<Vector24d>(arrayLength, Vector24d::Zero());
-        decompositionField2D = std::vector<Matrix24d>(arrayLength, Matrix24d::Zero());
-        gradVecs->SetNumberOfComponents(2);
-        eps1->SetNumberOfComponents(2);
-        eps2->SetNumberOfComponents(2);
     } else {
         is2D = false;
-        accumulatedField = std::vector<std::vector<Vector80d>>(numFields, std::vector<Vector80d>(arrayLength, Vector80d::Zero()));
-        meanVectors = std::vector<Vector80d>(arrayLength, Vector80d::Zero());
-        decompositionField = std::vector<Matrix80d>(arrayLength, Matrix80d::Zero());
-        gradVecs->SetNumberOfComponents(3);
-        eps1->SetNumberOfComponents(3);
-        eps2->SetNumberOfComponents(3);
         eps3 = vtkSmartPointer<vtkDoubleArray>::New();
         eps3->SetName("eps3");
         eps3->SetNumberOfComponents(3);
         eps3->SetNumberOfTuples(arrayLength);
+        lambda3 = vtkSmartPointer<vtkDoubleArray>::New();
+        lambda3->SetName("lambda3");
+        lambda3->SetNumberOfComponents(1);
+        lambda3->SetNumberOfTuples(arrayLength);
     }
-    gradVecs->SetNumberOfTuples(arrayLength);
-    eps1->SetNumberOfTuples(arrayLength);
-    eps2->SetNumberOfTuples(arrayLength);
     
-
     extrProbability = vtkDoubleArray::New();
     extrProbability->SetNumberOfComponents(1);
     extrProbability->SetNumberOfTuples(arrayLength);
     extrProbability->SetName(this->extrName);
 
-    //Summing up the vectors
-    cout << "Calculating mean vectors..." << endl;
+    //Everything now in one pipeline
+    cout << "Extracting features..." << endl;
     int calcMean = 0;
     #pragma omp parallel for
     for(int pointIndex = 0; pointIndex < arrayLength; pointIndex++){
 
-        calcMean++;
+        std::vector<Vector80d> neighborhood = std::vector<Vector80d>(numFields, Vector80d::Zero());
+        std::vector<Vector24d> neighborhood2D = std::vector<Vector24d>(numFields, Vector24d::Zero());
+        Vector80d meanVector = Vector80d::Zero();
+        Vector24d meanVector2D = Vector24d::Zero();
+        Matrix80d decomposition = Matrix80d::Zero();
+        Matrix24d decomposition2D = Matrix24d::Zero();
+
+        ++calcMean;
         if(calcMean % coutStep == 0){
             cout << '\r' << std::flush;
             cout << "Progress: " << int((double(calcMean) / double(arrayLength))*100) << "%";
         }
         
         if(isCloseToEdge(pointIndex)){
-                continue; // Cell at the edge of the field, do nothing
+            gradVecs->SetTuple3(pointIndex, 0.0, 0.0, 0.0);
+            eps1->SetTuple3(pointIndex, 0.0, 0.0, 0.0);
+            eps2->SetTuple3(pointIndex, 0.0, 0.0, 0.0);
+            lambda1->SetTuple1(pointIndex, 0.0);
+            lambda2->SetTuple1(pointIndex, 0.0);
+            if(!is2D){
+                eps3->SetTuple3(pointIndex, 0.0, 0.0, 0.0);
+                lambda3->SetTuple1(pointIndex, 0.0);
+            }
+            extrProbability->SetTuple1(pointIndex, 0.0);
+            continue; // Cell at the edge of the field, do nothing
         }
 
         std::set<int> indices; //set only contains a single instance of any entitiy
@@ -157,8 +171,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                         indices.insert(adjacentOfAdjacent[k]);
                     }
                 }
-            }
-            //cout << indices.size() << endl;   
+            }   
         } else {
             //get indices of cell nodes, then adjacent points of every node, then adjacent points of the adjacent points (Pointception) leading to 80 points in a 3D cell
             int nodes[8] = {pointIndex, pointIndex+1, pointIndex+offsetY, pointIndex+offsetY+1, pointIndex+offsetZ,
@@ -179,7 +192,6 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
             }
         }
         
-
         for(int fieldIndex = 0; fieldIndex < numFields; fieldIndex++){
             
             int c = 0;
@@ -190,74 +202,172 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 assert(ind < arrayLength);
                 //Calculating mean vec
                 transfer = (vtkImageData::SafeDownCast(input->GetBlock(fieldIndex))->GetPointData()->GetScalars())->GetComponent(ind, 0);
-                //transfer = (vtkImageData::SafeDownCast(input->GetBlock(fieldIndex))->GetPointData()->GetArray("FTLE"))->GetComponent(ind, 0);
                 if(is2D){
-                    meanVectors2D[pointIndex][c] += transfer / double(numFields);
+                    meanVector2D[c] += transfer / double(numFields);
                     //Summing accumulated field for covariance calculation
-                    accumulatedField2D[fieldIndex][pointIndex][c] = transfer;
+                    neighborhood2D[fieldIndex][c] = transfer;
                 } else {
-                    meanVectors[pointIndex][c] += transfer / double(numFields);
+                    meanVector[c] += transfer / double(numFields);
                     //Summing accumulated field for covariance calculation
-                    accumulatedField[fieldIndex][pointIndex][c] = transfer;
+                    neighborhood[fieldIndex][c] = transfer;
                 }
             }
-        }    
-    }
-    cout << '\r' << "Done.                                         " << endl;
+        }
 
-    auto func=[](double i, double j) { return fabs(i) < fabs(j); };
-    //calculates the gradients and eigenvectors of the current field, just for testing, remove later
-    //#pragma omp parallel for
-    for(int gradInd = 0; gradInd < arrayLength; gradInd++){
-        int currentStep = int(outputVector->GetInformationObject(0)->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()));
-        test = gradInd;
+        if(!calcCertain){
+
+            if(is2D){
+                //Covariance calculation and cholesky decomposition/eigenvector calculation for 2D cell
+                Matrix24d covarMat = Matrix24d::Zero();
+
+                for(int fieldIndex = 0; fieldIndex < numFields; fieldIndex++){
+                    Vector24d transferVec = neighborhood2D[fieldIndex] - meanVector2D;
+                    covarMat += (transferVec * transferVec.transpose()) / double(numFields);
+                }
+
+                if(useCholesky){
+                    Eigen::LLT<Matrix24d> cholesky(covarMat);
+                    decomposition2D = cholesky.matrixU();
+
+                } else {
+                    Eigen::EigenSolver<Matrix24d> eigenMat(covarMat);
+                    Matrix24c scaledEigenvecs = Matrix24c::Zero();
+
+                    for(int eigenVec = 0; eigenVec < covarMat.cols(); eigenVec++){
+                        //eigenvectors scaled by their eigenvalues
+                        scaledEigenvecs.col(eigenVec) = eigenMat.eigenvectors().col(eigenVec) * eigenMat.eigenvalues().row(eigenVec);
+                    }
+                    decomposition2D = scaledEigenvecs.real(); //very small complex parts are possible, taking real part just to be sure
+                }
+            } else {
+                //Covariance calculation and cholesky decomposition/eigenvector calculation for 3D cell
+                Matrix80d covarMat = Matrix80d::Zero();
+                
+                for(int fieldIndex = 0; fieldIndex < numFields; fieldIndex++){
+                    Vector80d transferVec = neighborhood[fieldIndex] - meanVector;
+                    covarMat += (transferVec * transferVec.transpose()) / double(numFields);
+                }
+
+                if(useCholesky){
+                    Eigen::LLT<Matrix80d> cholesky(covarMat);
+                    decomposition = cholesky.matrixU();
+                
+                } else {
+                    Eigen::EigenSolver<Matrix80d> eigenMat(covarMat, true);
+                    Matrix80c scaledEigenvecs = Matrix80c::Zero();
+
+                    for(int eigenVec = 0; eigenVec < covarMat.cols(); eigenVec++){
+                        //eigenvectors scaled by their eigenvalues
+                        scaledEigenvecs.col(eigenVec) = eigenMat.eigenvectors().col(eigenVec) * eigenMat.eigenvalues().row(eigenVec);
+                    }
+                    decomposition = scaledEigenvecs.real(); //very small (e.g. 10^-16) complex parts are possible, taking real part just to be sure
+                }
+            }
+        }
+        
+        double certainProb = 0.0;
         if(is2D){
             vec2 gradients[4];
             mat2 hessians[4];
             vec2 secGrads[4];
             double EV[2];
             vec2 ev1, ev2;
-            computeGradients2D(accumulatedField2D[currentStep][gradInd], gradients, hessians, secGrads);
-            gradVecs->SetTuple(gradInd, gradients[0]);
+            computeGradients2D(neighborhood2D[currentField], gradients, hessians, secGrads);
+            if(this->useNewMethod){
+                certainProb = computeRidgeLine2DTest(gradients, hessians, secGrads);
+            } else {
+                certainProb = computeRidgeLine2D(gradients, hessians, secGrads);
+            }
+            gradVecs->SetTuple3(pointIndex, gradients[0][0], gradients[0][1], 0.0);
             mat2eigenvalues(hessians[0], EV);
             std::sort(EV, EV + 2);
-            //std::sort(EV, EV + 2, func);
             mat2realEigenvector(hessians[0], EV[0], ev1);
             mat2realEigenvector(hessians[0], EV[1], ev2);
             vec2scal(ev1, EV[0], ev1);
             vec2scal(ev2, EV[1], ev2);
-            eps1->SetTuple(gradInd, ev1);
-            eps2->SetTuple(gradInd, ev2);
-            dotPs->SetTuple1(gradInd, EV[0]);
+            eps1->SetTuple3(pointIndex, ev1[0], ev1[1], 0.0);
+            eps2->SetTuple3(pointIndex, ev2[0], ev2[1], 0.0);
+            lambda1->SetTuple1(pointIndex, EV[0]);
+            lambda2->SetTuple1(pointIndex, EV[1]);
         } else {
             vec3 gradients[8];
             mat3 hessians[8];
             vec3 secGrads[8];
             double EV[3];
             vec3 ev1, ev2, ev3;
-            computeGradients(accumulatedField[currentStep][gradInd], gradients, hessians, secGrads);
-            gradVecs->SetTuple(gradInd, gradients[0]);
+
+            if(computeLines){
+                computeGradients(neighborhood[currentField], gradients, hessians, secGrads, true);
+                certainProb = computeParVectors(gradients, hessians, secGrads);
+            } else {
+                computeGradients(neighborhood[currentField], gradients, hessians, secGrads);
+                if(this->useNewMethod){
+                    certainProb = computeRidgeSurfaceTest(gradients, hessians);
+                } else {
+                    certainProb = computeRidgeSurface(gradients, hessians);
+                }
+            }
+
+            gradVecs->SetTuple(pointIndex, gradients[0]);
             mat3eigenvalues(hessians[0], EV);
             std::sort(EV, EV + 3);
-            //std::sort(EV, EV + 3, func);
             mat3realEigenvector(hessians[0], EV[0], ev1);
             mat3realEigenvector(hessians[0], EV[1], ev2);
             mat3realEigenvector(hessians[0], EV[2], ev3);
-            //vec3 nrmGrad, nrmEV;
-            //vec3nrm(gradients[0], nrmGrad);
-            //vec3nrm(ev1, nrmEV);
-            //double testDot = vec3dot(nrmGrad, nrmEV);
-            dotPs->SetTuple1(gradInd, EV[0]);
             vec3scal(ev1, EV[0], ev1);
             vec3scal(ev2, EV[1], ev2);
             vec3scal(ev3, EV[2], ev3);
-            eps1->SetTuple(gradInd, ev1);
-            eps2->SetTuple(gradInd, ev2);
-            eps3->SetTuple(gradInd, ev3);
+            eps1->SetTuple(pointIndex, ev1);
+            eps2->SetTuple(pointIndex, ev2);
+            eps3->SetTuple(pointIndex, ev3);
+            lambda1->SetTuple1(pointIndex, EV[0]);
+            lambda2->SetTuple1(pointIndex, EV[1]);
+            lambda3->SetTuple1(pointIndex, EV[2]);
+        }
+        if(calcCertain){
+            extrProbability->SetTuple1(pointIndex, certainProb);
+        } else {
+            if(useRandomSeed){
+                nanoClock::duration d = nanoClock::now() - beginning;
+                unsigned seed = d.count();
+                this->gen.seed(seed);
+            } else {
+                this->gen.seed(42);
+            }
+
+            double extrFrequency = 0.0;
+            double prob = 0.0;
+            for (int sampleIteration = 0; sampleIteration < numSamples; sampleIteration++){
+                
+                if(is2D){
+                    Vector24d normalVec = generateNormalDistributedVec2D();
+                    Vector24d sample;
+                    
+                    if(useCholesky){
+                        sample = (decomposition2D.transpose() * normalVec) + meanVector2D;
+                    } else {
+                        sample = (decomposition2D * normalVec) + meanVector2D;
+                    }
+                    prob += computeRidge2D(sample);
+                } else {
+                    Vector80d normalVec = generateNormalDistributedVec();
+                    Vector80d sample;
+
+                    if(useCholesky){
+                        sample = (decomposition.transpose() * normalVec) + meanVector;
+                    } else {
+                        sample = (decomposition * normalVec) + meanVector;
+                    }
+                    prob += computeRidge(sample);
+                }
+            }
+            extrFrequency = prob / double(numSamples);
+            extrProbability->SetTuple1(pointIndex, extrFrequency);            
         }
     }
+    cout << '\r' << "Done.                                          " << endl;
 
-    if(!calcCertain){
+    /* if(!calcCertain){
         cout << "Calculating Cholesky Decompositions..." << endl;
 
         int calcDecomp = 0;
@@ -330,7 +440,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
             unsigned seed = d.count();
             gen.seed(seed);
         } else {
-            this->gen.seed(12);
+            this->gen.seed(42);
         }
 
         //Monte Carlo Sampling and criteria calculation
@@ -423,7 +533,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
         }
         cout << '\r' << "Done.                                          " << endl;
         
-    }
+    } */
 
     vtkSmartPointer<vtkImageData> celldata = vtkSmartPointer<vtkImageData>::New();
     celldata->CopyStructure(data);
@@ -431,36 +541,29 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
 
     vtkSmartPointer<vtkImageData> grads = vtkSmartPointer<vtkImageData>::New();
     grads->CopyStructure(data);
+
     grads->GetPointData()->AddArray(gradVecs);
     grads->GetPointData()->AddArray(eps1);
     grads->GetPointData()->AddArray(eps2);
+    grads->GetPointData()->AddArray(lambda1);
+    grads->GetPointData()->AddArray(lambda2);
     if(!is2D){
         grads->GetPointData()->AddArray(eps3);
+        grads->GetPointData()->AddArray(lambda3);
     }
-    grads->GetPointData()->AddArray(dotPs);
 
-    vtkInformation *outInfo = outputVector->GetInformationObject(0);
-    vtkDataObject *output = vtkDataObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    vtkInformation *outInfo0 = outputVector->GetInformationObject(0);
+    vtkDataObject *output0 = vtkDataObject::SafeDownCast(outInfo0->Get(vtkDataObject::DATA_OBJECT()));
 
-    vtkInformation *outInfo2 = outputVector->GetInformationObject(1);
-    vtkDataObject *output2 = vtkDataObject::SafeDownCast(outInfo2->Get(vtkDataObject::DATA_OBJECT()));
+    vtkInformation *outInfo1 = outputVector->GetInformationObject(1);
+    vtkDataObject *output1 = vtkDataObject::SafeDownCast(outInfo1->Get(vtkDataObject::DATA_OBJECT()));
 
-    output->ShallowCopy(celldata);
-    output2->ShallowCopy(grads);
+    output0->DeepCopy(celldata);
+    output1->DeepCopy(grads);
     auto t_end = nanoClock::now();
     std::chrono::duration<double> durationTime = t_end - beginning;
 
     std::cout << "Uncertain Ridge calculation finished in " << durationTime.count() << " s." << std::endl;
-
-    if(is2D){ //freeing space
-        std::vector<Vector24d>().swap(meanVectors2D);
-        std::vector<Matrix24d>().swap(decompositionField2D);
-        std::vector<std::vector<Vector24d>>().swap(accumulatedField2D);
-    } else {
-        std::vector<Vector80d>().swap(meanVectors);
-        std::vector<Matrix80d>().swap(decompositionField);
-        std::vector<std::vector<Vector80d>>().swap(accumulatedField);
-    }
 
     return 1;
 }
@@ -700,7 +803,7 @@ void UncertainRidges::computeGradients2D(Vector24d sampleVector, vec2 *gradients
     }
 }
 
-bool UncertainRidges::computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads){
+double UncertainRidges::computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads){
     
     double s[3];
     double t[3];
@@ -749,9 +852,9 @@ bool UncertainRidges::computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *s
     }
 
     if(isExtremum > 1){ //at least two faces of the cell contain the extremum
-        return 1;
+        return 1.0;
     } else {
-        return 0;
+        return 0.0;
     }
 }
 
@@ -1001,12 +1104,9 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
 
             int numReal = mat2eigenvalues(ipolMat, ipolEigenvalues);
             if (numReal < 2){
-                //cout << "NUMREAL LOWER THAN 2" << endl;
                 continue;
             }
-            //if(fabs(fabs(ipolEigenvalues[0]) - fabs(ipolEigenvalues[1])) < this->evSim) continue; //degenerate point
 
-            //std::sort(ipolEigenvalues, ipolEigenvalues + 2);
             int ind = -1;
             int coGradInd = -1;
             double crossMin = 1000;
@@ -1082,13 +1182,6 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
         if(PCAeigenvalues[1] > evLimit) return 0;
     }
 
-    //auto func=[](double a, double b){ return fabs(a) < fabs(b); };
-    //std::sort(PCAeigenvalues, PCAeigenvalues + 2, func);
-
-    //double anisoL = PCAeigenvalues[1] / (PCAeigenvalues[0] + PCAeigenvalues[1]);
-    //if (anisoL < this->evSim) return 0;
-
-
     for(int i = 0; i < 4; i++){
         vec2 nrmVec;
         vec2 nrmEV;
@@ -1100,25 +1193,24 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
         if(gradMag == 0.0) gradMag = 0.00001;
 
         double lookupScale = double(1) / gradMag;
-
-        //if(lookupScale > 3.0) lookupScale = 3.0;
-
         double evScale = fabs(eigenvalues[i] * (spaceMag * lookupScale));
 
         if(evScale > dotP){
 
             if(this->extremum == 0){
-
                 if(eigenvalues[i] < -(this->evMin)) isExtremum++;
-
             } else if(this->extremum == 1){
-
                 if(eigenvalues[i] > this->evMin) isExtremum++;
-
             }
         }
     }
     double value = double(isExtremum) / double(4);
+
+    /*if(value >= this->crossTol){
+        return value;
+    } else {
+        return 0.0;
+    } */
     
     return value;
 }
@@ -1404,15 +1496,15 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
         }
     }
 
-    double value = double(isExtremum) / double(8);
+    /* double value = double(isExtremum) / double(8);
 
-    return value;
+    return value; */
 
-    /* if(isExtremum > 0){
-        return 1;
+    if(isExtremum > 0){
+        return 1.0;
     } else {
-        return 0;
-    } */
+        return 0.0;
+    }
 }
 
 double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians){
@@ -1432,30 +1524,23 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
         return 0;
     }
 
-    auto func=[](double i, double j) { return fabs(i) > fabs(j); };
+    //auto func=[](double i, double j) { return fabs(i) > fabs(j); };
 
     for(int i = 0; i < 8; i++){
         double tempEV[3];
         mat3eigenvalues(hessians[i], tempEV);
-        std::sort(tempEV, tempEV + 3);
+        std::sort(tempEV, tempEV + 3); //eberly
+        //std::sort(tempEV, tempEV + 3, func); //lindeberg
         eigenvalues[i] = tempEV[extrInd];
         mat3realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i]);
     }
 
     PCA::computeConsistentNodeValuesByPCA(eigenvectors, 8, PCAeigenvalues); //orient all eigenvectors consistent
 
-    //std::sort(PCAeigenvalues, PCAeigenvalues + 3, func);
-
     if(evThresh < 1.0){ //PCA subdomain filter
         double evLimit = PCAeigenvalues[0] * evThresh;
         if(PCAeigenvalues[1] > evLimit) return 0;
     }
-
-    /* auto func=[](double a, double b){ return fabs(a) < fabs(b); };
-    std::sort(PCAeigenvalues, PCAeigenvalues + 3, func);
-
-    double anisoL = (PCAeigenvalues[2] - PCAeigenvalues[1]) / (PCAeigenvalues[0] + PCAeigenvalues[1] + PCAeigenvalues[2]);
-    if(anisoL < this->evSim) return 0; //linear anisotropy filter */
 
     for(int i = 0; i < 8; i++){
         vec3 nrmVec;
@@ -1468,33 +1553,34 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
         if(gradMag == 0.0) gradMag = 0.00001;
 
         double lookupScale = double(1) / gradMag;
-
         double evScale = fabs(eigenvalues[i] * (spaceMag * lookupScale)); // + fabs(eigenvalues[i] * (0.5 * spaceMag * lookupRatio));
 
         if(evScale > dotP){
 
             if(this->extremum == 0){
-
                 if(eigenvalues[i] < -(this->evMin)) isExtremum++;
-
             } else if(this->extremum == 1){
-
                 if(eigenvalues[i] > this->evMin) isExtremum++;
-
             }
         }
     }
     double value = double(isExtremum)/ double(8);
 
-    return value;
+    if(value >= this->crossTol){
+        return value;
+    } else {
+        return 0.0;
+    }
+
+    //return value;
 }
 
 double UncertainRidges::computeRidge(Vector80d sampleVector){
     
-    double hasExtremum = 0.0;
     vec3 gradients[8];
     mat3 hessians[8];
     vec3 secGrads[8];
+    double hasExtremum = 0.0;
 
     if(this->computeLines){
         computeGradients(sampleVector, gradients, hessians, secGrads, true);
@@ -1502,7 +1588,7 @@ double UncertainRidges::computeRidge(Vector80d sampleVector){
     } else {
         computeGradients(sampleVector, gradients, hessians, secGrads);
 
-        if(this->debug){
+        if(this->useNewMethod){
             hasExtremum = computeRidgeSurfaceTest(gradients, hessians);
         } else {
             hasExtremum = computeRidgeSurface(gradients, hessians);
@@ -1514,14 +1600,14 @@ double UncertainRidges::computeRidge(Vector80d sampleVector){
 
 double UncertainRidges::computeRidge2D(Vector24d sampleVector){
 
-    double hasExtremum = 0.0;
     vec2 gradients[4];
     mat2 hessians[4];
     vec2 secGrads[4];
+    double hasExtremum = 0.0;
 
     computeGradients2D(sampleVector, gradients, hessians, secGrads);
 
-    if(this->debug){
+    if(this->useNewMethod){
         hasExtremum = computeRidgeLine2DTest(gradients, hessians, secGrads);
     } else {
         hasExtremum = computeRidgeLine2D(gradients, hessians, secGrads);

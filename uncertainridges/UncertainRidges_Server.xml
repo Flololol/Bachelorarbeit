@@ -80,8 +80,8 @@
             </IntVectorProperty>
 
             <IntVectorProperty
-                    name="Debug"
-                    command="Setdebug"
+                    name="New Method"
+                    command="SetuseNewMethod"
                     number_of_elements="1"
                     default_values="1">
                 <BooleanDomain name="bool"/>
@@ -142,21 +142,9 @@
                     command="SetevMin"
                     number_of_elements="1"
                     default_values="0.0">
-            <DoubleRangeDomain name="range" min="0.0" max="30.0"/>
+            <!--<DoubleRangeDomain name="range" min="0.0" max="1000.0"/>  -->
         <Documentation>
         Minimum value for the eigenvalue belonging to the chosen extremum.
-        </Documentation>
-            </DoubleVectorProperty>
-
-            <DoubleVectorProperty
-                    name="Linear Anisotropy Measure"
-                    label="Linear Anisotropy"
-                    command="SetevSim"
-                    number_of_elements="1"
-                    default_values="0.85">
-            <DoubleRangeDomain name="range" min="0.01" max="1.0"/>
-        <Documentation>
-        Range of similar Eigenvalues to be filtered. Increase this to filter more degenerate points.
         </Documentation>
             </DoubleVectorProperty>
 
@@ -165,22 +153,10 @@
                     label="Cross Tolerance"
                     command="SetcrossTol"
                     number_of_elements="1"
-                    default_values="0.25">
-            <DoubleRangeDomain name="range" min="0.0001" max="3.0"/>
+                    default_values="0.0">
+            <DoubleRangeDomain name="range" min="0.0" max="3.0"/>
         <Documentation>
         Tolerance for cross/dot product of hessian eigenvectors and gradient to be close to zero.
-        </Documentation>
-            </DoubleVectorProperty>
-
-            <DoubleVectorProperty
-                    name="Ridge Distance Amplifier"
-                    label="Ridge Dis. Amp."
-                    command="Setampli"
-                    number_of_elements="1"
-                    default_values="0.25">
-            <DoubleRangeDomain name="range" min="0.0001" max="3.0"/>
-        <Documentation>
-        Distance to ridge to amplify probability
         </Documentation>
             </DoubleVectorProperty>
 
