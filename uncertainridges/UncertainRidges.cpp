@@ -1206,13 +1206,13 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
     }
     double value = double(isExtremum) / double(4);
 
-    if(value >= this->crossTol){
+    /* if(value >= this->crossTol){
         return value;
     } else {
         return 0.0;
-    }
+    } */
     
-    //return value;
+    return value;
 }
 
 int UncertainRidges::computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, double *s, double *t){
@@ -1566,13 +1566,13 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
     }
     double value = double(isExtremum)/ double(8);
 
-    if(value >= this->crossTol){
+    /* if(value >= this->crossTol){
         return value;
     } else {
         return 0.0;
-    } //percentage filter, experimental
+    } */ //percentage filter, experimental
 
-    //return value;
+    return value;
 }
 
 double UncertainRidges::computeRidge(Vector80d sampleVector){
