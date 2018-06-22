@@ -96,8 +96,8 @@ int UncertainScalarFields::RequestInformation(vtkInformation *vtkNotUsed(request
     spacing_grid[1] = bounds_grid[1] / extent_grid[3];
     spacing_grid[2] = bounds_grid[2] / extent_grid[5];
 
-    outInfo->Set(vtkDataObject::SPACING(), spacing_grid,3);
-    outInfo->Set(vtkDataObject::ORIGIN(),origin_grid,3);
+    outInfo->Set(vtkDataObject::SPACING(), spacing_grid, 3);
+    outInfo->Set(vtkDataObject::ORIGIN(),origin_grid, 3);
     return 1;
 }
 
@@ -116,19 +116,23 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
     extent_grid[3] = origin_grid[1] + (resolution_grid[1] - 1);
     spacing_grid[0] = bounds_grid[0] / extent_grid[1];
     spacing_grid[1] = bounds_grid[1] / extent_grid[3];
-    int scaleFactor = 1;
+    domRange[0] = bounds_grid[0] - origin_grid[0];
+    domRange[1] = bounds_grid[1] - origin_grid[1];
 
+    int scaleFactor = 1;
 
     if(bounds_grid[2] != 0){
         is2D = false;
         extent_grid[4] = origin_grid[2];
         extent_grid[5] = origin_grid[2] + (resolution_grid[2] - 1);
         spacing_grid[2] = bounds_grid[2] / extent_grid[5];
+        domRange[2] = 0.0;
     } else {
         extent_grid[4] = extent_grid[5] = 0;
         spacing_grid[2] = 0.0;
-        scaleFactor = resolution_grid[2];
+        if(resolution_grid[2] != 0.0) scaleFactor = resolution_grid[2];
         resolution_grid[2] = 1;
+        domRange[2] = bounds_grid[2] - origin_grid[2];
     }
 
 
@@ -150,6 +154,16 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
     scalars->SetNumberOfTuples(array_len);
     scalars->SetName("data");
 
+    std::vector<double> offset = std::vector<double>(numOfFields);
+    if(shiftEQ){
+        double range = noise[1] - noise[0];
+        double step = range / double(numOfFields);
+        double start = noise[0];
+        for(int i = 0; i < numOfFields; i++){
+            offset[i] = start + (step*i);
+        }
+    }
+
     if (is2D){
         for(int field = 0; field < numOfFields; field++){
             int tupleIndex = 0;
@@ -159,17 +173,30 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
             double offsetX = 0.0;
             double offsetY = 0.0;
 
-            if(shiftX) offsetX = random_value(re);
-            if(shiftY) offsetY = random_value(re);
+            if(shiftX){
+                if(shiftEQ){
+                    offsetX = offset[field];
+                } else {
+                    offsetX = random_value(re);
+                }
+            }
+            if(shiftY){
+                if(shiftEQ){
+                    offsetY = offset[field];
+                } else {
+                    offsetY = random_value(re);
+                }
+            }
+            //if(shiftX) offsetX = random_value(re);
+            //if(shiftY) offsetY = random_value(re);
 
             for(int y = 0; y < resolution_grid[1]; y++){
                 for(int x = 0; x < resolution_grid[0]; x++){
                     
-                    double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * 30.0;
-                    double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * 4 - 2;
+                    double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0];
+                    double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1];
 
                     double value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
-                    
                     //double value = -fabs(yPhys - 0.5 * sin(xPhys*xPhys / 10.0)); //plotted sinus
 
                     //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
@@ -198,9 +225,29 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
             double offsetY = 0.0;
             double offsetZ = 0.0;
 
-            if(shiftX) offsetX = random_value(re);
-            if(shiftY) offsetY = random_value(re);
-            if(shiftZ) offsetZ = random_value(re);
+            if(shiftX){
+                if(shiftEQ){
+                    offsetX = offset[field];
+                } else {
+                    offsetX = random_value(re);
+                }
+            }
+            if(shiftY){
+                if(shiftEQ){
+                    offsetY = offset[field];
+                } else {
+                    offsetY = random_value(re);
+                }
+            }
+            if(shiftZ){
+                if(shiftEQ){
+                    offsetZ = offset[field];
+                } else {
+                    offsetZ = random_value(re);
+                }
+            }
+            //if(shiftY) offsetY = random_value(re);
+            //if(shiftZ) offsetZ = random_value(re);
             //int offsetZ = rand_int(re);
             
             //int breakZ = int(floor(resolution_grid[2] / 5));
@@ -217,13 +264,18 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                 for(int y = 0; y < resolution_grid[1]; y++){
                     for(int x = 0; x < resolution_grid[0]; x++){
 
-                        double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * (4*M_PI); // - (0.5*M_PI);
-                        double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * (4*M_PI); // - (0.5*M_PI);
-                        double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * (4*M_PI); // - (0.5*M_PI);
-
+                        //double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0]; // - (0.5*M_PI);
+                        double xPhys = double(x) / double(resolution_grid[0] - 1) * (4*M_PI);
+                        //double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1]; // - (0.5*M_PI);
+                        double yPhys = double(y) / double(resolution_grid[1] - 1) * (4*M_PI);
+                        //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * domRange[2] + origin_grid[2]; // - (0.5*M_PI);
+                        double zPhys = double(z) / double(resolution_grid[2] - 1) * (4*M_PI);
                         //double xPhys = double(x) / double(resolution_grid[0] - 1) * 6 - 3.;
                         //double yPhys = double(y) / double(resolution_grid[1] - 1) * 6 - 3.;
                         //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * (8 * M_PI);
+                        xPhys += offsetX;
+                        yPhys += offsetY;
+                        zPhys += offsetZ;
 
                         double value = cos(xPhys) + cos(yPhys) + cos(zPhys); //standard 3D cos set
                         //double value = (cos(((4*M_PI)/resolution_grid[0])*x) + cos(((4*M_PI)/resolution_grid[1])*y) + cos(((4*M_PI)/resolution_grid[2])*z)) + random_value(re);

@@ -29,16 +29,17 @@
 	  Generates multiple Scalar Fields with randomness on every value.
 	</Documentation>
       </InputProperty>
-      
-      <DoubleVectorProperty
-	  name="Grid origin"
-	  command="Setorigin_grid"
-	  number_of_elements="3"
-	  default_values="0 0 0">
-	<Documentation>
-	  Origin of grid.
-	</Documentation>
-      </DoubleVectorProperty>
+
+			<IntVectorProperty
+    name="Shift Equal"
+    command="SetshiftEQ"
+    number_of_elements="1"
+    default_values="0">
+      <BooleanDomain name="bool"/>
+  <Documentation>
+  	Shift fields with equal distance between noise.
+  </Documentation>
+      </IntVectorProperty>
 
 			<IntVectorProperty
     name="Shift X"
@@ -72,6 +73,16 @@
   	Uncertainty along Z-Axis
   </Documentation>
       </IntVectorProperty>
+
+			<DoubleVectorProperty
+	  name="Grid origin"
+	  command="Setorigin_grid"
+	  number_of_elements="3"
+	  default_values="0 0 0">
+	<Documentation>
+	  Origin of grid.
+	</Documentation>
+      </DoubleVectorProperty>
       
       <DoubleVectorProperty
 	  name="Grid bounds"

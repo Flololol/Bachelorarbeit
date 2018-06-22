@@ -184,9 +184,8 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 for(int j = 0; j < 7; j++){
                     int adjPoint = adjacentPoints[j];
                     int adjacentOfAdjacent[7] = {adjPoint, adjPoint-1, adjPoint+1, adjPoint-offsetY, adjPoint+offsetY, adjPoint-offsetZ, adjPoint+offsetZ};
-
                     for(int k = 0; k < 7; k++){
-                    indices.insert(adjacentOfAdjacent[k]);
+                        indices.insert(adjacentOfAdjacent[k]);
                     }
                 }   
             }
@@ -203,11 +202,11 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 //Calculating mean vec
                 transfer = (vtkImageData::SafeDownCast(input->GetBlock(fieldIndex))->GetPointData()->GetScalars())->GetComponent(ind, 0);
                 if(is2D){
-                    meanVector2D[c] += transfer / double(numFields);
+                    meanVector2D[c] += transfer;
                     //Summing accumulated field for covariance calculation
                     neighborhood2D[fieldIndex][c] = transfer;
                 } else {
-                    meanVector[c] += transfer / double(numFields);
+                    meanVector[c] += transfer;
                     //Summing accumulated field for covariance calculation
                     neighborhood[fieldIndex][c] = transfer;
                 }
@@ -218,12 +217,15 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
 
             if(is2D){
                 //Covariance calculation and cholesky decomposition/eigenvector calculation for 2D cell
+                meanVector2D = meanVector2D / double(numFields);
                 Matrix24d covarMat = Matrix24d::Zero();
 
                 for(int fieldIndex = 0; fieldIndex < numFields; fieldIndex++){
                     Vector24d transferVec = neighborhood2D[fieldIndex] - meanVector2D;
-                    covarMat += (transferVec * transferVec.transpose()) / double(numFields);
+                    covarMat += transferVec * transferVec.transpose();
                 }
+
+                covarMat = covarMat / double(numFields);
 
                 if(useCholesky){
                     Eigen::LLT<Matrix24d> cholesky(covarMat);
@@ -241,16 +243,27 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 }
             } else {
                 //Covariance calculation and cholesky decomposition/eigenvector calculation for 3D cell
+                meanVector = meanVector / double(numFields);
                 Matrix80d covarMat = Matrix80d::Zero();
                 
                 for(int fieldIndex = 0; fieldIndex < numFields; fieldIndex++){
                     Vector80d transferVec = neighborhood[fieldIndex] - meanVector;
-                    covarMat += (transferVec * transferVec.transpose()) / double(numFields);
+                    covarMat += transferVec * transferVec.transpose();
                 }
+
+                covarMat = covarMat / double(numFields);
+                //cout << covarMat.diagonal() << endl;
 
                 if(useCholesky){
                     Eigen::LLT<Matrix80d> cholesky(covarMat);
+                    /* Eigen::LDLT<Matrix80d> cholesky(covarMat);
+                    cout << "IS CHOLESKY POSITIVE?! : " << cholesky.isPositive() << endl;
+                    Matrix80d iden = Matrix80d::Identity();
+                    iden.diagonal() = cholesky.vectorD();
+                    cout << iden.diagonal() << endl; */
+                    
                     decomposition = cholesky.matrixU();
+                    //decomposition = cholesky.matrixL() * iden.sqrt();
                 
                 } else {
                     Eigen::EigenSolver<Matrix80d> eigenMat(covarMat, true);
@@ -259,6 +272,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                     for(int eigenVec = 0; eigenVec < covarMat.cols(); eigenVec++){
                         //eigenvectors scaled by their eigenvalues
                         scaledEigenvecs.col(eigenVec) = eigenMat.eigenvectors().col(eigenVec) * eigenMat.eigenvalues().row(eigenVec);
+
                     }
                     decomposition = scaledEigenvecs.real(); //very small (e.g. 10^-16) complex parts are possible, taking real part just to be sure
                 }
@@ -355,6 +369,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
 
                     if(useCholesky){
                         sample = (decomposition.transpose() * normalVec) + meanVector;
+                        //sample = (decomposition * normalVec) + meanVector;
                     } else {
                         sample = (decomposition * normalVec) + meanVector;
                     }

@@ -20,6 +20,7 @@
 #define EIGEN_STACK_ALLOCATION_LIMIT 1000000
 #endif
 #include <Eigen/Eigen>
+#include <Eigen/unsupported/MatrixFunctions>
 #include <omp.h>
 #include "math.h"
 #include "linalg.h"

@@ -38,6 +38,9 @@ public:
 	vtkSetVector2Macro(noise, double);
 	vtkGetVector2Macro(noise, double);
 
+	vtkSetMacro(shiftEQ, bool);
+    vtkGetMacro(shiftEQ, bool);
+
     vtkSetMacro(shiftX, bool);
     vtkGetMacro(shiftX, bool);
 	
@@ -70,8 +73,10 @@ protected:
 	double origin_grid[3];
 	double bounds_grid[3];
 	double resolution_grid[3];
+	double domRange[3];
 
 	int numOfFields;
+	bool shiftEQ;
 	bool shiftX;
 	bool shiftY;
 	bool shiftZ;
