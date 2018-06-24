@@ -28,16 +28,6 @@
 #include "pca_incl_2D.h"
 #include "mc_table.h"
 
-//#include "VCGJacobi.h"
-//#include "parallelVectors.h"
-//#include "vtkFloatArray.h"
-//#include "vtkDataArray.h"
-//#include "vtkDataSet.h"
-//#include "vtkRectilinearGrid.h"
-//#include "vtkPolyData.h"
-//#include "exception"
-//#include "vtkObjectFactory.h"
-
 typedef Eigen::Matrix<double,3,1> Vector3d;
 typedef Eigen::Matrix<double,3,3> Matrix3d;
 
@@ -109,8 +99,6 @@ protected:
 private:
     vtkSmartPointer<vtkImageData> data;
     vtkDoubleArray *extrProbability;
-    //vtkDoubleArray *ridgeProbability;
-    //vtkDoubleArray *valleyProbability;
     vtkSmartPointer<vtkDoubleArray> gradVecs;
     vtkSmartPointer<vtkDoubleArray> eps1;
     vtkSmartPointer<vtkDoubleArray> eps2;
@@ -118,15 +106,6 @@ private:
     vtkSmartPointer<vtkDoubleArray> lambda1;
     vtkSmartPointer<vtkDoubleArray> lambda2;
     vtkSmartPointer<vtkDoubleArray> lambda3;
-    //std::vector<Vector80d> meanVectors;
-    //std::vector<Vector24d> meanVectors2D;
-    //std::vector<std::vector<Vector80d>> accumulatedField;
-    //std::vector<std::vector<Vector24d>> accumulatedField2D;
-    //std::vector<std::vector<Vector80d>> sampleField;
-    //std::vector<std::vector<Vector24d>> sampleField2D;
-    //std::vector<Matrix80d> decompositionField;
-    //std::vector<Matrix24d> decompositionField2D;
-    
 
     int numSamples;
     int extremum;
@@ -156,12 +135,9 @@ private:
     bool isCloseToEdge(int index);
     Vector80d generateNormalDistributedVec();
     Vector24d generateNormalDistributedVec2D();
-    //std::vector<std::tuple<Vector3d, Vector3d, Matrix3d>> computeGradients(Vector80d sampleVector);
     void computeGradients(Vector80d sampleVector, vec3 *gradients, mat3 *hessians, vec3 *secGrads, bool calcSec=false);
-    //std::vector<std::tuple<Vector2d, Vector2d, Matrix2d>> computeGradients2D(Vector24d sampleVector);
     void computeGradients2D(Vector24d sampleVector, vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     double computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads);
-    //int computeParVectors2D(std::vector<std::tuple<Vector2d, Vector2d, Matrix2d>> cell);
     bool computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     double computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     int computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, double *s, double *t);
