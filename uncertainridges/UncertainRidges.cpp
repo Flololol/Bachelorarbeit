@@ -290,8 +290,8 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
             std::sort(EV, EV + 2);
             mat2realEigenvector(hessians[0], EV[0], ev1);
             mat2realEigenvector(hessians[0], EV[1], ev2);
-            vec2scal(ev1, EV[0], ev1);
-            vec2scal(ev2, EV[1], ev2);
+            //vec2scal(ev1, EV[0], ev1);
+            //vec2scal(ev2, EV[1], ev2);
             eps1->SetTuple3(pointIndex, ev1[0], ev1[1], 0.0);
             eps2->SetTuple3(pointIndex, ev2[0], ev2[1], 0.0);
             lambda1->SetTuple1(pointIndex, EV[0]);
@@ -321,9 +321,9 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
             mat3realEigenvector(hessians[0], EV[0], ev1);
             mat3realEigenvector(hessians[0], EV[1], ev2);
             mat3realEigenvector(hessians[0], EV[2], ev3);
-            vec3scal(ev1, EV[0], ev1);
-            vec3scal(ev2, EV[1], ev2);
-            vec3scal(ev3, EV[2], ev3);
+            //vec3scal(ev1, EV[0], ev1);
+            //vec3scal(ev2, EV[1], ev2);
+            //vec3scal(ev3, EV[2], ev3);
             eps1->SetTuple(pointIndex, ev1);
             eps2->SetTuple(pointIndex, ev2);
             eps3->SetTuple(pointIndex, ev3);
@@ -361,7 +361,6 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                     Vector80d sample;
 
                     if(useCholesky){
-                        //sample = (decomposition.transpose() * normalVec) + meanVector;
                         sample = (decomposition * normalVec) + meanVector;
                     } else {
                         sample = (decomposition * normalVec) + meanVector;
@@ -622,181 +621,6 @@ double UncertainRidges::computeParVectors(vec3 *gradients, mat3 *hessians, vec3 
     }
 }
 
-bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads){
-    //think about PCA with this kind of implementation
-    int signs[4];
-    double eigenvalues[4][2];
-    double PCAeigenvalues[2];
-    double dotProducts[4];
-    vec2 eigenvectors[4];
-    int extrInd = -1;
-    int isExtremum = 0;
-
-    if(this->extremum == 0){ //ridge
-        extrInd = 0;
-    } else if(this->extremum == 1){ //valley
-        extrInd = 1;
-    } else {
-        cout << "No Extremum chosen!" << endl;
-        return 0;
-    }
-
-    //auto func=[](double i, double j) { return abs(i) > abs(j); };
-
-    for(int i = 0; i < 4; i++){
-        mat2eigenvalues(hessians[i], eigenvalues[i]);
-        std::sort(eigenvalues[i], eigenvalues[i] + 2); //sorting for eberly
-        //std::sort(eigenvalues[i], eigenvalues[i] + 2, func); //sorting for lindeberg
-        mat2realEigenvector(hessians[i], eigenvalues[i][extrInd], eigenvectors[i]);
-    }
-
-    PCA2D::computeConsistentNodeValuesByPCA(eigenvectors, 4, PCAeigenvalues);
-
-    if(this->evThresh < 1.0){ //PCA subdomain filter
-        double evLimit = PCAeigenvalues[0] * this->evThresh;
-        if(PCAeigenvalues[1] > evLimit) return 0;
-    }
-
-    for(int i = 0; i < 4; i++){
-        vec2 nrmVec;
-        vec2nrm(gradients[i], nrmVec);
-        dotProducts[i] = vec2dot(nrmVec, eigenvectors[i]);
-
-        if(dotProducts[i] > 0){
-            signs[i] = 1;
-        } else if(dotProducts[i] == 0) {
-            signs[i] = 0;
-        } else if(dotProducts[i] < 0){
-            signs[i] = -1;
-        }
-    }
-
-    for(int i = 0; i < 4; i++){
-        if(signs[i] != signs[(i + 1) % 4]){
-            mat2 ipolMat;
-            vec2 ipolVec;
-            double ipolEigenvalues[2];
-            vec2 ipolEigenvectors[2];
-
-            double t = dotProducts[i] / (dotProducts[i] - dotProducts[((i+1) % 4)]);
-
-            vec2lerp(gradients[i], gradients[((i+1) % 4)], t, ipolVec);
-            mat2lerp(hessians[i], hessians[((i+1) % 4)], t, ipolMat);
-
-            int numReal = mat2eigenvalues(ipolMat, ipolEigenvalues);
-            if (numReal < 2){
-                continue;
-            }
-
-            int ind = -1;
-            int coGradInd = -1;
-            double crossMin = 1000;
-
-            vec2nrm(ipolVec, ipolVec);
-            for(int j = 0; j < numReal; j++){
-                bool ok = mat2realEigenvector(ipolMat, ipolEigenvalues[j], ipolEigenvectors[j]);
-                if(ok){
-                    double crossP = fabs(vec2cross(ipolVec, eigenvectors[j]));
-                    if(crossP < this->crossTol){
-                        if(crossP < crossMin){
-                            ind = j;
-                            crossMin = crossP;
-                        }
-                    }
-                }
-            }
-
-            switch(ind){
-                case 0: coGradInd = 1; break;
-                case 1: coGradInd = 0; break;
-                default: continue;
-            }
-
-
-            if(this->extremum == 0){
-                if(ipolEigenvalues[coGradInd] < -(this->evMin)) isExtremum++;
-            } else if(this->extremum == 1){
-                if(ipolEigenvalues[coGradInd] > this->evMin) isExtremum++;
-            }
-        }
-    }
-    
-    if(isExtremum > 0){
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads){
-    //returns the percentage of nodes that are close to a ridge
-    double eigenvalues[4];
-    double PCAeigenvalues[2];
-    vec2 eigenvectors[4];
-    int isExtremum = 0;
-    int extrInd = -1;
-
-    if(this->extremum == 0){ //ridge
-        extrInd = 0;
-    } else if(this->extremum == 1){ //valley
-        extrInd = 1;
-    } else {
-        cout << "No Extremum chosen!" << endl;
-        return 0;
-    }
-
-    //auto func=[](double i, double j) { return abs(i) > abs(j); };
-
-    for(int i = 0; i < 4; i++){
-        double tempEV[2];
-        mat2eigenvalues(hessians[i], tempEV);
-        std::sort(tempEV, tempEV + 2); //eberly
-        //std::sort(tempEV, tempEV + 2, func); //lindeberg
-        eigenvalues[i] = tempEV[extrInd];
-        mat2realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i]);
-    }
-
-    PCA2D::computeConsistentNodeValuesByPCA(eigenvectors, 4, PCAeigenvalues);
-
-    if(this->evThresh < 1.0){ //PCA subdomain filter
-        double evLimit = PCAeigenvalues[0] * this->evThresh;
-        if(PCAeigenvalues[1] > evLimit) return 0;
-    }
-
-    for(int i = 0; i < 4; i++){
-        vec2 nrmVec;
-        vec2 nrmEV;
-        vec2nrm(gradients[i], nrmVec);
-        vec2nrm(eigenvectors[i], nrmEV);
-
-        double dotP = fabs(vec2dot(nrmVec, nrmEV));
-        double gradMag = vec2mag(gradients[i]);
-        if(gradMag == 0.0) gradMag = 0.0001;
-
-        double lookupScale = double(1) / gradMag;
-        double evScale = fabs(eigenvalues[i] * (spaceMag * lookupScale));
-        if(evScale > this->crossTol) evScale = this->crossTol;
-
-        if(evScale > dotP){
-
-            if(this->extremum == 0){
-                if(eigenvalues[i] < -(this->evMin)) isExtremum++;
-            } else if(this->extremum == 1){
-                if(eigenvalues[i] > this->evMin) isExtremum++;
-            }
-        }
-    }
-    double value = double(isExtremum) / double(4);
-
-    /* if(value >= this->crossTol){
-        return value;
-    } else {
-        return 0.0;
-    } */
-    
-    return value;
-}
-
 int UncertainRidges::computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, double *s, double *t){
 
     vec3 v0, v1, v2;
@@ -910,16 +734,12 @@ int UncertainRidges::computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, dou
 bool UncertainRidges::isRidgeOrValley(mat3 *hessians, vec3 *faceVel, double s, double t){
 
     //calculates if found parallel vectors point fits the chosen extremum
-    vec3 A;
-    vec3 B;
-    vec3 C;
-    vec3 result[3];
+    vec3 velVec;
     mat3 interpolated;
+    vec3 cross;
     double PCAeigenvalues[3];
     double eigenvalues[3];
     vec3 eigenvectors[4];
-    bool ok[3];
-    //bool hasExtremum = false;
     int extrInd = -1;
 
     //now need the index of the biggest ev for ridge and smallest for valley since we compute lines
@@ -930,16 +750,15 @@ bool UncertainRidges::isRidgeOrValley(mat3 *hessians, vec3 *faceVel, double s, d
     }
 
     mat3lerp3(hessians[0], hessians[1], hessians[2], s, t, interpolated);
+    vec3lerp3(faceVel[0], faceVel[1], faceVel[2], s, t, velVec);
 
-    int numRealEigenvalues = mat3eigenvalues(interpolated, eigenvalues);
-    if(numRealEigenvalues != 3) return 0;
+    mat3eigenvalues(interpolated, eigenvalues);
     std::sort(eigenvalues, eigenvalues + 3);
     mat3realEigenvector(interpolated, eigenvalues[extrInd], eigenvectors[0]);
 
     for(int i = 0; i < 3; i++){
         double tempEV[3];
-        double numReal = mat3eigenvalues(hessians[i], tempEV);
-        if(numReal != 3) return 0;
+        mat3eigenvalues(hessians[i], tempEV);
         std::sort(tempEV, tempEV + 3);
         mat3realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i+1]);
     }
@@ -952,26 +771,211 @@ bool UncertainRidges::isRidgeOrValley(mat3 *hessians, vec3 *faceVel, double s, d
         if(PCAeigenvalues[1] > evLimit) return 0;
     }
 
-    vec3 velVec;
-    vec3lerp3(faceVel[0], faceVel[1], faceVel[2], s, t, velVec);   
     vec3nrm(velVec, velVec);
-
-    vec3 cross;
     vec3cross(velVec, eigenvectors[0], cross);
-    if(isZero(cross)){ //filter via crossTol
-
+    double mag = vec3mag(cross);
+    if(mag < this->crossTol){
         if(this->extremum == 0){ //ridge
-
-            if(eigenvalues[0] < -(this->evMin) and eigenvalues[1] < -(this->evMin)) return 1;
-
+            if(eigenvalues[1] < -(this->evMin)) return 1;
         } else if(this->extremum == 1){ //valley
-
-            if(eigenvalues[1] > this->evMin and eigenvalues[2] > this->evMin) return 1;
-
+            if(eigenvalues[1] > this->evMin) return 1;
         }
     }
 
     return 0;
+}
+
+bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads){
+
+    int signs[4];
+    double PCAeigenvalues[2];
+    double dotProducts[4];
+    vec2 eigenvectors[4];
+    int extrInd = -1;
+    int isExtremum = 0;
+
+    if(this->extremum == 0){ //ridge
+        extrInd = 0;
+    } else if(this->extremum == 1){ //valley
+        extrInd = 1;
+    } else {
+        cout << "No Extremum chosen!" << endl;
+        return 0;
+    }
+
+    //auto func=[](double i, double j) { return abs(i) > abs(j); };
+
+    for(int i = 0; i < 4; i++){
+        double EV[2];
+        mat2eigenvalues(hessians[i], EV);
+        std::sort(EV, EV + 2); //sorting for eberly
+        //std::sort(EV, EV + 2, func); //sorting for lindeberg
+        mat2realEigenvector(hessians[i], EV[extrInd], eigenvectors[i]);
+    }
+
+    PCA2D::computeConsistentNodeValuesByPCA(eigenvectors, 4, PCAeigenvalues);
+
+    if(this->evThresh < 1.0){ //PCA subdomain filter
+        double evLimit = PCAeigenvalues[0] * this->evThresh;
+        if(PCAeigenvalues[1] > evLimit) return 0;
+    }
+
+    for(int i = 0; i < 4; i++){
+        vec2 nrmVec;
+        vec2nrm(gradients[i], nrmVec);
+        dotProducts[i] = vec2dot(nrmVec, eigenvectors[i]);
+
+        if(dotProducts[i] > 0){
+            signs[i] = 1;
+        } else if(dotProducts[i] == 0) {
+            signs[i] = 0;
+        } else if(dotProducts[i] < 0){
+            signs[i] = -1;
+        }
+    }
+
+    int ord[4] = {0,1,3,2};
+    /* for(int i = 0; i < 4; i++){
+        if(signs[ord[i]] != signs[ord[(i + 1) % 4]]){
+            mat2 ipolMat;
+            vec2 ipolVec;
+            vec2 ipolEv;
+            double ipolEigenvalues[2];
+            vec2 ipolEigenvectors[2];
+
+            double t = dotProducts[ord[i]] / (dotProducts[ord[i]] - dotProducts[ord[(i+1) % 4]]);
+
+            vec2lerp(gradients[ord[i]], gradients[ord[(i+1) % 4]], t, ipolVec);
+            mat2lerp(hessians[ord[i]], hessians[ord[(i+1) % 4]], t, ipolMat);
+            mat2eigenvalues(ipolMat, ipolEigenvalues);
+
+            int ind = -1;
+            int coGradInd = -1;
+
+            vec2nrm(ipolVec, ipolVec);
+            for(int j = 0; j < 2; j++){
+                mat2realEigenvector(ipolMat, ipolEigenvalues[j], ipolEigenvectors[j]);
+                double crossP = fabs(vec2cross(ipolVec, eigenvectors[j]));
+                if(crossP < this->crossTol) ind = j;
+            }
+            switch(ind){
+                case 0: coGradInd = 1; break;
+                case 1: coGradInd = 0; break;
+                default: continue;
+            }
+
+            if(this->extremum == 0){
+                if(ipolEigenvalues[coGradInd] < -(this->evMin)) return 1;
+            } else if(this->extremum == 1){
+                if(ipolEigenvalues[coGradInd] > this->evMin) return 1;
+            }
+        }
+    } */
+
+    double unitVecs[2][2][2] = {{{1.0, 0.0},{-1.0, 0.0}},{{0.0, 1.0},{0.0, -1.0}}};
+    for(int i = 0; i < 4; i++){
+        if(signs[ord[i]] != signs[ord[(i + 1) % 4]]){
+            mat2 ipolMat;
+            vec2 ipolVec;
+            vec2 ipolEv;
+            double ipolEvalues[2];
+            int ind1 = (i < 2) ? 0 : 1;
+            int ind2 = (i < 2) ? 1 : 0;
+
+            int signLL = (vec2dot(gradients[ord[i]], unitVecs[i%2][ind1]) >= 0) ? 1 : -1;
+            int signUR = (vec2dot(gradients[ord[(i + 1) % 4]], unitVecs[i%2][ind2]) >= 0) ? 1 : -1;
+            if (signLL != signUR) continue;
+
+            double t = dotProducts[ord[i]] / (dotProducts[ord[i]] - dotProducts[ord[(i+1) % 4]]);
+
+            vec2lerp(gradients[ord[i]], gradients[ord[(i+1) % 4]], t, ipolVec);
+            mat2lerp(hessians[ord[i]], hessians[ord[(i+1) % 4]], t, ipolMat);
+            mat2eigenvalues(ipolMat, ipolEvalues);
+            std::sort(ipolEvalues, ipolEvalues + 2);
+            mat2realEigenvector(ipolMat, ipolEvalues[extrInd], ipolEv);
+
+            vec2nrm(ipolVec, ipolVec);
+            double dotP = fabs(vec2dot(ipolVec, ipolEv));
+            //if(dotP < this->crossTol){
+                if(this->extremum == 0){
+                    if(signLL == 1 and signUR == 1){
+                        if(ipolEvalues[extrInd] < -(this->evMin)) isExtremum++;
+                    }
+                } else if(this->extremum == 1){
+                    if(signLL == -1 and signUR == -1){
+                        if(ipolEvalues[extrInd] > this->evMin) isExtremum++;
+                    }
+                }
+            //}
+
+        }
+    }
+    if(isExtremum > 1){
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads){
+    //returns the percentage of nodes that are close to a ridge
+    double eigenvalues[4];
+    double PCAeigenvalues[2];
+    vec2 eigenvectors[4];
+    int isExtremum = 0;
+    int extrInd = -1;
+
+    if(this->extremum == 0){ //ridge
+        extrInd = 0;
+    } else if(this->extremum == 1){ //valley
+        extrInd = 1;
+    } else {
+        cout << "No Extremum chosen!" << endl;
+        return 0;
+    }
+
+    //auto func=[](double i, double j) { return abs(i) > abs(j); };
+
+    for(int i = 0; i < 4; i++){
+        double tempEV[2];
+        mat2eigenvalues(hessians[i], tempEV);
+        std::sort(tempEV, tempEV + 2); //eberly
+        //std::sort(tempEV, tempEV + 2, func); //lindeberg
+        eigenvalues[i] = tempEV[extrInd];
+        mat2realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i]);
+    }
+
+    PCA2D::computeConsistentNodeValuesByPCA(eigenvectors, 4, PCAeigenvalues);
+
+    if(this->evThresh < 1.0){ //PCA subdomain filter
+        double evLimit = PCAeigenvalues[0] * this->evThresh;
+        if(PCAeigenvalues[1] > evLimit) return 0;
+    }
+
+    for(int i = 0; i < 4; i++){
+        vec2 nrmVec;
+        vec2 nrmEV;
+        vec2nrm(gradients[i], nrmVec);
+        vec2nrm(eigenvectors[i], nrmEV);
+
+        double dotP = fabs(vec2dot(nrmVec, nrmEV));
+        double gradMag = vec2mag(gradients[i]);
+        if(gradMag == 0.0) gradMag = 0.001;
+
+        double lookupScale = double(1) / gradMag;
+        double evScale = fabs(eigenvalues[i] * (this->spaceMag * lookupScale));
+
+        if(evScale > dotP){
+            if(this->extremum == 0){
+                if(eigenvalues[i] < -(this->evMin)) isExtremum++;
+            } else if(this->extremum == 1){
+                if(eigenvalues[i] > this->evMin) isExtremum++;
+            }
+        }
+    }
+    double value = double(isExtremum) / double(4);
+    
+    return value;
 }
 
 double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
@@ -995,7 +999,7 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
         return 0;
     }
 
-    auto func=[](double i, double j) { return abs(i) > abs(j); };
+    //auto func=[](double i, double j) { return abs(i) > abs(j); };
 
     for(int i = 0; i < 8; i++){
         double tempEV[3];
@@ -1006,6 +1010,11 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
     }
 
     PCA::computeConsistentNodeValuesByPCA(eigenvectors, 8, PCAeigenvalues); //maybe remove
+
+    if(evThresh < 1.0){ //PCA subdomain filter
+        double evLimit = PCAeigenvalues[0] * evThresh;
+        if(PCAeigenvalues[1] > evLimit) return 0;
+    }
 
     std::string binaryInd = "";
 
@@ -1041,8 +1050,10 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
 
                 mat3lerp(hessians[node1], hessians[node2], t, ipolMat);
                 mat3eigenvalues(ipolMat, ipolEV);
+
                 std::sort(ipolEV, ipolEV + 3);
                 eigenvalues[signChanged] = ipolEV[extrInd]; //copy eigenvalue corresponding to chosen extremum
+
                 mat3realEigenvector(ipolMat, ipolEV[extrInd], ipolEvector);
                 vec3copy(ipolEvector, eigenvectors[8 + signChanged]); //copy respective eigenvector
 
@@ -1055,34 +1066,20 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
         }
     }
 
-    PCA::computeConsistentNodeValuesByPCA(eigenvectors, (8 + signChanged), PCAeigenvalues); //orient all eigenvectors consistent
-
-    if(evThresh < 1.0){ //PCA subdomain filter
-        double evLimit = PCAeigenvalues[0] * evThresh;
-        if(PCAeigenvalues[1] > evLimit) return 0;
-    }
-
     for(int i = 0; i < signChanged; i++){
 
-        if(fabs(vec3dot(ipolGradients[i], eigenvectors[8 + i])) < this->crossTol){
+        double dotP = fabs(vec3dot(ipolGradients[i], eigenvectors[8 + i]));
+        if(dotP < this->crossTol){
 
             if(this->extremum == 0){ //ridge
-
                 if(eigenvalues[i] < -(this->evMin)) isExtremum++;
-
             } else if(this->extremum == 1){ //valley
-
                 if(eigenvalues[i] > this->evMin) isExtremum++;
-
             }
         }
     }
 
-    /* double value = double(isExtremum) / double(8);
-
-    return value; */
-
-    if(isExtremum > 0){
+    if(isExtremum > 1){
         return 1.0;
     } else {
         return 0.0;
@@ -1132,11 +1129,10 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
 
         double dotP = fabs(vec3dot(nrmVec, nrmEV));
         double gradMag = vec3mag(gradients[i]);
-        if(gradMag == 0.0) gradMag = 0.00001;
+        if(gradMag == 0.0) gradMag = 0.0001;
 
         double lookupScale = double(1) / gradMag;
-        double evScale = fabs(eigenvalues[i] * (spaceMag * lookupScale)); // + fabs(eigenvalues[i] * (0.5 * spaceMag * lookupRatio));
-        if(evScale > this->crossTol) evScale = this->crossTol;
+        double evScale = fabs(eigenvalues[i] * (this->spaceMag * lookupScale));
 
         if(evScale > dotP){
 
@@ -1148,12 +1144,6 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
         }
     }
     double value = double(isExtremum)/ double(8);
-
-    /* if(value >= this->crossTol){
-        return value;
-    } else {
-        return 0.0;
-    } */ //percentage filter, experimental
 
     return value;
 }
@@ -1197,14 +1187,4 @@ double UncertainRidges::computeRidge2D(Vector24d sampleVector){
     }
 
     return hasExtremum;
-}
-
-bool UncertainRidges::isZero(vec3 vec){
-    
-    double tol = this->crossTol;
-    if((fabs(vec[0]) < tol) and (fabs(vec[1]) < tol) and (fabs(vec[2]) < tol)){
-        return true;
-    } else {
-        return false;
-    }
 }

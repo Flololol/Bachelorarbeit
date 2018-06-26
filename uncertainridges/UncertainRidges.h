@@ -138,15 +138,14 @@ private:
     void computeGradients(Vector80d sampleVector, vec3 *gradients, mat3 *hessians, vec3 *secGrads, bool calcSec=false);
     void computeGradients2D(Vector24d sampleVector, vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     double computeParVectors(vec3 *gradients, mat3 *hessians, vec3 *secGrads);
-    bool computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
-    double computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     int computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, double *s, double *t);
     bool isRidgeOrValley(mat3 *hessians, vec3 *faceVel, double s, double t);
+    bool computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
+    double computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, vec2 *secGrads);
     double computeRidgeSurface(vec3 *gradients, mat3 *hessians);
     double computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians);
     double computeRidge(Vector80d sampleVector);
     double computeRidge2D(Vector24d sampleVector);
-    bool isZero(vec3 vec);
 };
 
 #endif
