@@ -342,34 +342,23 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 this->gen.seed(42);
             }
 
-            double extrFrequency = 0.0;
             double prob = 0.0;
             for (int sampleIteration = 0; sampleIteration < numSamples; sampleIteration++){
                 
                 if(is2D){
                     Vector24d normalVec = generateNormalDistributedVec2D();
-                    Vector24d sample;
+                    Vector24d sample = decomposition2D * normalVec + meanVector2D;
                     
-                    if(useCholesky){
-                        sample = (decomposition2D.transpose() * normalVec) + meanVector2D;
-                    } else {
-                        sample = (decomposition2D * normalVec) + meanVector2D;
-                    }
                     prob += computeRidge2D(sample);
                 } else {
                     Vector80d normalVec = generateNormalDistributedVec();
-                    Vector80d sample;
+                    Vector80d sample = decomposition * normalVec + meanVector;
 
-                    if(useCholesky){
-                        sample = (decomposition * normalVec) + meanVector;
-                    } else {
-                        sample = (decomposition * normalVec) + meanVector;
-                    }
                     prob += computeRidge(sample);
                 }
             }
-            extrFrequency = prob / double(numSamples);
-            extrProbability->SetTuple1(pointIndex, extrFrequency);            
+            double frequency = prob / double(numSamples);
+            extrProbability->SetTuple1(pointIndex, frequency);            
         }
     }
     cout << '\r' << "Done.                                          " << endl;
@@ -623,6 +612,7 @@ double UncertainRidges::computeParVectors(vec3 *gradients, mat3 *hessians, vec3 
 
 int UncertainRidges::computeParallelOnCellface(vec3 *faceVel, vec3 *faceAcc, double *s, double *t){
 
+    //parallel vectors implementation
     vec3 v0, v1, v2;
     vec3copy(faceVel[0], v0);
     vec3copy(faceVel[1], v1);
@@ -752,13 +742,15 @@ bool UncertainRidges::isRidgeOrValley(mat3 *hessians, vec3 *faceVel, double s, d
     mat3lerp3(hessians[0], hessians[1], hessians[2], s, t, interpolated);
     vec3lerp3(faceVel[0], faceVel[1], faceVel[2], s, t, velVec);
 
-    mat3eigenvalues(interpolated, eigenvalues);
+    int numR = mat3eigenvalues(interpolated, eigenvalues);
+    if(numR < 3) return 0;
     std::sort(eigenvalues, eigenvalues + 3);
     mat3realEigenvector(interpolated, eigenvalues[extrInd], eigenvectors[0]);
 
     for(int i = 0; i < 3; i++){
         double tempEV[3];
-        mat3eigenvalues(hessians[i], tempEV);
+        int numRR = mat3eigenvalues(hessians[i], tempEV);
+        if(numRR < 3) return 0;
         std::sort(tempEV, tempEV + 3);
         mat3realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i+1]);
     }
@@ -807,7 +799,8 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
 
     for(int i = 0; i < 4; i++){
         double EV[2];
-        mat2eigenvalues(hessians[i], EV);
+        int numR = mat2eigenvalues(hessians[i], EV);
+        if(numR < 2) return 0;
         std::sort(EV, EV + 2); //sorting for eberly
         //std::sort(EV, EV + 2, func); //sorting for lindeberg
         mat2realEigenvector(hessians[i], EV[extrInd], eigenvectors[i]);
@@ -890,7 +883,8 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
 
             vec2lerp(gradients[ord[i]], gradients[ord[(i+1) % 4]], t, ipolVec);
             mat2lerp(hessians[ord[i]], hessians[ord[(i+1) % 4]], t, ipolMat);
-            mat2eigenvalues(ipolMat, ipolEvalues);
+            int numR = mat2eigenvalues(ipolMat, ipolEvalues);
+            if(numR < 2) continue;
             std::sort(ipolEvalues, ipolEvalues + 2);
             mat2realEigenvector(ipolMat, ipolEvalues[extrInd], ipolEv);
 
@@ -938,7 +932,8 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
 
     for(int i = 0; i < 4; i++){
         double tempEV[2];
-        mat2eigenvalues(hessians[i], tempEV);
+        int numR = mat2eigenvalues(hessians[i], tempEV);
+        if(numR < 2) return 0;
         std::sort(tempEV, tempEV + 2); //eberly
         //std::sort(tempEV, tempEV + 2, func); //lindeberg
         eigenvalues[i] = tempEV[extrInd];
@@ -1003,7 +998,8 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
 
     for(int i = 0; i < 8; i++){
         double tempEV[3];
-        mat3eigenvalues(hessians[i], tempEV);
+        int numR = mat3eigenvalues(hessians[i], tempEV);
+        if(numR < 3) return 0;
         std::sort(tempEV, tempEV + 3); //sorting for eberly
         //std::sort(tempEV, tempEV + 3, func); //sorting for lindeberg
         mat3realEigenvector(hessians[i], tempEV[extrInd], eigenvectors[i]);
@@ -1049,7 +1045,8 @@ double UncertainRidges::computeRidgeSurface(vec3 *gradients, mat3 *hessians){
                 double t = dotProducts[node1] / (dotProducts[node1] - dotProducts[node2]); //interpolation weight
 
                 mat3lerp(hessians[node1], hessians[node2], t, ipolMat);
-                mat3eigenvalues(ipolMat, ipolEV);
+                int numR = mat3eigenvalues(ipolMat, ipolEV);
+                if(numR < 3) continue;
 
                 std::sort(ipolEV, ipolEV + 3);
                 eigenvalues[signChanged] = ipolEV[extrInd]; //copy eigenvalue corresponding to chosen extremum
@@ -1107,7 +1104,8 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
 
     for(int i = 0; i < 8; i++){
         double tempEV[3];
-        mat3eigenvalues(hessians[i], tempEV);
+        int numR = mat3eigenvalues(hessians[i], tempEV);
+        if(numR < 3) return 0;
         std::sort(tempEV, tempEV + 3); //eberly
         //std::sort(tempEV, tempEV + 3, func); //lindeberg
         eigenvalues[i] = tempEV[extrInd];
