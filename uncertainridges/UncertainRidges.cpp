@@ -386,12 +386,12 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     vtkInformation *outInfo1 = outputVector->GetInformationObject(1);
     vtkDataObject *output1 = vtkDataObject::SafeDownCast(outInfo1->Get(vtkDataObject::DATA_OBJECT()));
 
-    output0->DeepCopy(celldata);
-    output1->DeepCopy(grads);
+    output0->ShallowCopy(celldata);
+    output1->ShallowCopy(grads);
     auto t_end = nanoClock::now();
     std::chrono::duration<double> durationTime = t_end - beginning;
 
-    std::cout << "Uncertain Ridge calculation finished in " << durationTime.count() << " s." << std::endl;
+    std::cout << "Uncertain Ridge calculation finished in " << durationTime.count() << "s." << std::endl;
 
     return 1;
 }

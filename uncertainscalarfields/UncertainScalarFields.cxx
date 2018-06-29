@@ -264,24 +264,67 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                 for(int y = 0; y < resolution_grid[1]; y++){
                     for(int x = 0; x < resolution_grid[0]; x++){
 
-                        //double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0]; // - (0.5*M_PI);
-                        double xPhys = double(x) / double(resolution_grid[0] - 1) * (4*M_PI);
-                        //double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1]; // - (0.5*M_PI);
-                        double yPhys = double(y) / double(resolution_grid[1] - 1) * (4*M_PI);
-                        //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * domRange[2] + origin_grid[2]; // - (0.5*M_PI);
-                        double zPhys = double(z) / double(resolution_grid[2] - 1) * (4*M_PI);
+                        double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0]; // - (0.5*M_PI);
+                        //double xPhys = double(x) / double(resolution_grid[0] - 1) * (4*M_PI);
+                        double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1]; // - (0.5*M_PI);
+                        //double yPhys = double(y) / double(resolution_grid[1] - 1) * (4*M_PI);
+                        double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * domRange[2] + origin_grid[2]; // - (0.5*M_PI);
+                        //double zPhys = double(z) / double(resolution_grid[2] - 1) * (4*M_PI);
                         //double xPhys = double(x) / double(resolution_grid[0] - 1) * 6 - 3.;
                         //double yPhys = double(y) / double(resolution_grid[1] - 1) * 6 - 3.;
                         //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * (8 * M_PI);
                         xPhys += offsetX;
                         yPhys += offsetY;
                         zPhys += offsetZ;
+                        double value = 0.0;
 
-                        double value = cos(xPhys) + cos(yPhys) + cos(zPhys); //standard 3D cos set
-                        //double value = (cos(((4*M_PI)/resolution_grid[0])*x) + cos(((4*M_PI)/resolution_grid[1])*y) + cos(((4*M_PI)/resolution_grid[2])*z)) + random_value(re);
-                        //double value = (A * exp(-zPhys * ((pow((xPhys - xNull), 2)/2*pow(sigmaX, 2)) + (pow((yPhys - yNull), 2)/2*pow(sigmaY, 2))))); //2D gauss glocke in 3D
+                        if(isotro){
+                            double rad = (theta/double(360))*(2*M_PI);
+                            double xCenter = (base * cos(rad)) - (base * sin(rad));
+                            double yCenter = (base * sin(rad)) + (base * cos(rad));
 
-                        //double value = cos(zPhys);
+                            double x_cur = xPhys * cos(rad) - yPhys * sin(rad);
+                            double y_cur = xPhys * sin(rad) + yPhys * cos(rad);
+                            double z_cur = zPhys;
+
+                            double true_rad = sqrt(pow((x_cur - xCenter), 2) + pow((y_cur - yCenter), 2));
+                            double rad_normed = true_rad / 0.45;
+                            double radius = 0;
+                            double innerweight = 0;
+
+                            if(z_cur <= 0.3){
+                                if(rad_normed <= 0.1){
+                                    radius = pow(pow((y_cur - yCenter), 2), (1 / 2.0));
+                                } else if((rad_normed > 0.1) and (rad_normed <= 0.7)){
+                                    innerweight = (1.0 + sin(0.5 * M_PI + ((rad_normed - 0.1) / (0.6 * M_PI)))) / 2.0;
+                                    radius = pow(pow((y_cur - yCenter), 2), (1 / 2.0)) * innerweight + true_rad * (1.0 - innerweight);
+                                } else {
+                                    radius = true_rad;
+                                }
+                            } else if((z_cur > 0.3) and (z_cur <= 0.9)){
+                                if(rad_normed <= 0.1){
+                                    radius = pow(((x_cur - xCenter) * ((sin((((z_cur - 0.3) / 0.6) - 0.5) * M_PI) + 1.0) * 0.5)), 2) + pow(pow((y_cur - yCenter), 2), (1 / 2.0));
+                                } else if((rad_normed > 0.1) and (rad_normed <= 0.7)){
+                                    innerweight = (1.0 + sin(0.5 * M_PI + ((rad_normed - 0.1) / 0.6) * M_PI)) / 2.0;
+                                    radius = pow(((x_cur - xCenter) * ((sin((((z_cur - 0.3) / 0.6) - 0.5) * M_PI) + 1.0) * 0.5)), 2) + pow(pow((y_cur - yCenter), 2), (1 / 2.0)) * innerweight + true_rad * (1.0 - innerweight);
+                                } else {
+                                    radius = true_rad;
+                                }
+                            } else if(z_cur > 0.9){
+                                radius = pow((pow((x_cur - xCenter), 2) + pow((y_cur - yCenter), 2)), 0.5);
+                            }
+
+                            double value1 = sin((1.4 * radius * M_PI) + (M_PI / 2.0)) + 1.0;
+                            double value2 = pow((z_cur * 0.7), 3);
+
+                            value = value1 + value2;
+                        } else {
+                            value = cos(xPhys) + cos(yPhys) + cos(zPhys); //standard 3D cos set
+                            //double value = (cos(((4*M_PI)/resolution_grid[0])*x) + cos(((4*M_PI)/resolution_grid[1])*y) + cos(((4*M_PI)/resolution_grid[2])*z)) + random_value(re);
+                            //double value = (A * exp(-zPhys * ((pow((xPhys - xNull), 2)/2*pow(sigmaX, 2)) + (pow((yPhys - yNull), 2)/2*pow(sigmaY, 2))))); //2D gauss glocke in 3D
+
+                            //double value = cos(zPhys);
+                        }
 
                         scalars ->SetTuple1(tupleIndex, value);
                         //scalars ->SetTuple1(tupleIndex, double(tupleIndex));
@@ -293,7 +336,7 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
             data->GetPointData()->SetScalars(scalars);
 
             stringstream index;
-            index << "." << field << ".vtk";
+            index << "." << field << ".vti";
             string path = file_name + string(index.str());
             writer->SetFileName(path.c_str());
             writer->SetInputData(data);
@@ -305,8 +348,8 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
     
     vtkDataObject *output = vtkDataObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
 
-    output->DeepCopy(data);
-    return 0;
+    output->ShallowCopy(data);
+    return 1;
 }
 
 void UncertainScalarFields::PrintSelf(ostream &os, vtkIndent indent)

@@ -114,6 +114,37 @@
 	</Documentation>
 			</IntVectorProperty>
 
+			<IntVectorProperty
+    name="Isotropy Domain"
+    command="Setisotro"
+    number_of_elements="1"
+    default_values="0">
+      <BooleanDomain name="bool"/>
+  <Documentation>
+  	Generate field with perfect isotropy
+  </Documentation>
+      </IntVectorProperty>
+
+			<DoubleVectorProperty
+		name="Theta"
+		command="Settheta"
+		number_of_elements="1"
+		default_values="0">
+	<Documentation>
+	Twist isotropy domain by this angle
+	</Documentation>
+			</DoubleVectorProperty>
+
+			<DoubleVectorProperty
+		name="Base center"
+		command="Setbase"
+		number_of_elements="1"
+		default_values="0.5">
+	<Documentation>
+	Base center of isotropy domain
+	</Documentation>
+			</DoubleVectorProperty>
+
 			<DoubleVectorProperty
 		name="Noise Level"
 		command="Setnoise"

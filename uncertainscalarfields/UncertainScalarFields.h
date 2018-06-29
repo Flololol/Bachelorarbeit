@@ -26,6 +26,15 @@ public:
 	vtkSetMacro(numOfFields, int);
 	vtkGetMacro(numOfFields, int);
 
+	vtkSetMacro(theta, double);
+	vtkGetMacro(theta, double);
+
+	vtkSetMacro(isotro, bool);
+    vtkGetMacro(isotro, bool);
+
+	vtkSetMacro(base, double);
+	vtkGetMacro(base, double);
+
 	vtkSetVector3Macro(origin_grid, double);
 	vtkGetVector3Macro(origin_grid, double);
 
@@ -76,6 +85,9 @@ protected:
 	double domRange[3];
 
 	int numOfFields;
+	double theta;
+	bool isotro;
+	double base;
 	bool shiftEQ;
 	bool shiftX;
 	bool shiftY;
