@@ -10,6 +10,7 @@
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkPointData.h"
 #include "vtkDoubleArray.h"
+#include "vtkCellData.h"
 #include "vtkMultiBlockDataSet.h"
 #include "chrono"
 #include "vector"
@@ -99,6 +100,7 @@ protected:
 private:
     vtkSmartPointer<vtkImageData> data;
     vtkDoubleArray *extrProbability;
+    vtkDoubleArray *cellProb;
     vtkSmartPointer<vtkDoubleArray> gradVecs;
     vtkSmartPointer<vtkDoubleArray> eps1;
     vtkSmartPointer<vtkDoubleArray> eps2;

@@ -196,11 +196,20 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                     double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0];
                     double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1];
 
-                    double value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
-                    //double value = -fabs(yPhys - 0.5 * sin(xPhys*xPhys / 10.0)); //plotted sinus
+                    double value = 0.0;
+                    
+                    if(isotro){
+                        double dist = sqrt(pow(xPhys, 2) + pow(yPhys, 2));
+                        value = 1 - dist;
+                    } else {
+                        //value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
+                        double yDist = sqrt(pow(yPhys, 2));
+                        value = (1 - yDist) + (pow(xPhys, 3) * 0.0001);
+                        value += random_value(re);
+                        //double value = -fabs(yPhys - 0.5 * sin(xPhys*xPhys / 10.0)); //plotted sinus
 
-                    //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
-
+                        //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
+                    }
                     scalars ->SetTuple1(tupleIndex, value);
                     //scalars ->SetTuple1(tupleIndex, double(tupleIndex));
                     tupleIndex++;
@@ -210,7 +219,7 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
             data->GetPointData()->SetScalars(scalars);
 
             stringstream index;
-            index << "." << field << ".vtk";
+            index << "." << field << ".vti";
             string path = file_name + string(index.str());
             writer->SetFileName(path.c_str());
             writer->SetInputData(data);

@@ -68,7 +68,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     this->data = vtkSmartPointer<vtkImageData>::New();
     data->ShallowCopy(vtkImageData::SafeDownCast(input->GetBlock(0)));
 
-    this->beginning = nanoClock::now(); //clock for random seed and calculation time
+    
     this->bounds = data->GetBounds(); 
     this->spacing = data->GetSpacing();
     this->spaceMag = vec3mag(spacing);
@@ -101,6 +101,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     lambda2->SetNumberOfComponents(1);
     lambda2->SetNumberOfTuples(arrayLength);    
     
+
     if((bounds[5] - bounds[4]) == 0){
         is2D = true;
     } else {
@@ -120,6 +121,14 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     extrProbability->SetNumberOfTuples(arrayLength);
     extrProbability->SetName(this->extrName);
 
+    int numCells = (gridResolution[0] - 1) * (gridResolution[1] - 1) * (gridResolution[2] - 1);
+
+    cellProb = vtkDoubleArray::New();
+    cellProb->SetNumberOfComponents(1);
+    cellProb->SetNumberOfTuples(numCells);
+    cellProb->SetName("Cell Probability");
+
+    this->beginning = nanoClock::now(); //clock for random seed and calculation time
     //Everything now in one pipeline
     cout << "Extracting features..." << endl;
     int calcMean = 0;
@@ -135,8 +144,11 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
 
         ++calcMean;
         if(calcMean % coutStep == 0){
+            std::chrono::duration<double> calcTime = beginning - nanoClock::now();
+            int prog = int((double(calcMean) / double(arrayLength))*100);
+            double ETR = (double(calcTime.count())/prog) * (100 - prog);
             cout << '\r' << std::flush;
-            cout << "Progress: " << int((double(calcMean) / double(arrayLength))*100) << "%";
+            cout << "Prog:" << prog << "%, ETR:" << ETR << "s";
         }
         
         if(isCloseToEdge(pointIndex)){
@@ -363,9 +375,28 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     }
     cout << '\r' << "Done.                                          " << endl;
 
+    //Transforming point data to cell data as we essentially have cell data with a dummy layer
+    int cellInd = 0;
+    int pointInd = 0;
+    for(int z = 0; z < gridResolution[2]; z++){
+        for(int y = 0; y < gridResolution[1]; y++){
+            for(int x = 0; x < gridResolution[0]; x++){
+                if(((x % (gridResolution[0]-1)) == 0 and (x != 0)) or ((y % (gridResolution[1]-1)) == 0 and (y != 0)) or ((z % (gridResolution[2]-1)) == 0 and (z != 0))){
+                //if((x == 0) or (y == 0) or (z == 0)){
+                    pointInd++;
+                    continue;
+                } else {
+                    cellProb->SetTuple(cellInd, extrProbability->GetTuple(pointInd));
+                    cellInd++;
+                    pointInd++;
+                }
+            }
+        }
+    }
     vtkSmartPointer<vtkImageData> celldata = vtkSmartPointer<vtkImageData>::New();
     celldata->CopyStructure(data);
-    celldata->GetPointData()->AddArray(extrProbability);
+    //celldata->GetPointData()->AddArray(extrProbability);
+    celldata->GetCellData()->AddArray(cellProb);
 
     vtkSmartPointer<vtkImageData> grads = vtkSmartPointer<vtkImageData>::New();
     grads->CopyStructure(data);
@@ -1130,7 +1161,7 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
         if(gradMag == 0.0) gradMag = 0.0001;
 
         double lookupScale = double(1) / gradMag;
-        double evScale = fabs(eigenvalues[i] * (this->spaceMag * lookupScale));
+        double evScale = fabs(eigenvalues[i] * this->spaceMag * lookupScale);
 
         if(evScale > dotP){
 
