@@ -121,12 +121,30 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     extrProbability->SetNumberOfTuples(arrayLength);
     extrProbability->SetName(this->extrName);
 
-    int numCells = (gridResolution[0] - 1) * (gridResolution[1] - 1) * (gridResolution[2] - 1);
-
     cellProb = vtkDoubleArray::New();
     cellProb->SetNumberOfComponents(1);
-    cellProb->SetNumberOfTuples(numCells);
+    cellProb->SetNumberOfTuples(data->GetNumberOfCells());
     cellProb->SetName("Cell Probability");
+
+    /* vtkSmartPointer<vtkDoubleArray> sampleCell = vtkSmartPointer<vtkDoubleArray>::New();
+    sampleCell->SetNumberOfComponents(3);
+    sampleCell->SetNumberOfTuples(arrayLength);
+    sampleCell->SetName("Sample Gradients");
+    vtkSmartPointer<vtkDoubleArray> sampleEps1 = vtkSmartPointer<vtkDoubleArray>::New();
+    sampleEps1->SetNumberOfComponents(3);
+    sampleEps1->SetNumberOfTuples(arrayLength);
+    sampleEps1->SetName("Sample Eps1");
+    vtkSmartPointer<vtkDoubleArray> sampleEps2 = vtkSmartPointer<vtkDoubleArray>::New();
+    sampleEps2->SetNumberOfComponents(3);
+    sampleEps2->SetNumberOfTuples(arrayLength);
+    sampleEps2->SetName("Sample Eps2");
+    vec3 zerovec = {0, 0, 0};
+
+    for(int i = 0; i < arrayLength; i++){
+        sampleCell->SetTuple(i, zerovec);
+        sampleEps1->SetTuple(i, zerovec);
+        sampleEps2->SetTuple(i, zerovec);
+    } */
 
     this->beginning = nanoClock::now(); //clock for random seed and calculation time
     //Everything now in one pipeline
@@ -360,6 +378,31 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 if(is2D){
                     Vector24d normalVec = generateNormalDistributedVec2D();
                     Vector24d sample = decomposition2D * normalVec + meanVector2D;
+                    /* vec2 gradients[4];
+                    mat2 hessians[4];
+                    vec2 secGrads[4];
+                    vec2 eigenvectors[4][2];
+                    computeGradients2D(sample, gradients, hessians, secGrads);
+                    sampleCell->SetTuple3(pointIndex, gradients[0][0], gradients[0][1], 0);
+                    sampleCell->SetTuple3(pointIndex+1, gradients[1][0], gradients[1][1], 0);
+                    sampleCell->SetTuple3(pointIndex+offsetY, gradients[2][0], gradients[2][1], 0);
+                    sampleCell->SetTuple3(pointIndex+offsetY+1, gradients[3][0], gradients[3][1], 0);
+                    for(int i = 0; i < 4; i++){
+                        double eigenvalues[2];
+                        mat2eigenvalues(hessians[i], eigenvalues);
+                        std::sort(eigenvalues, eigenvalues + 2);
+                        mat2realEigenvector(hessians[i], eigenvalues[0], eigenvectors[i][0]);
+                        mat2realEigenvector(hessians[i], eigenvalues[1], eigenvectors[i][1]);
+                    }
+                    sampleEps1->SetTuple3(pointIndex, eigenvectors[0][0][0], eigenvectors[0][0][1], 0);
+                    sampleEps1->SetTuple3(pointIndex+1, eigenvectors[1][0][0], eigenvectors[1][0][1], 0);
+                    sampleEps1->SetTuple3(pointIndex+offsetY, eigenvectors[2][0][0], eigenvectors[2][0][1], 0);
+                    sampleEps1->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][0][0], eigenvectors[3][0][1], 0);
+
+                    sampleEps2->SetTuple3(pointIndex, eigenvectors[0][1][0], eigenvectors[0][1][1], 0);
+                    sampleEps2->SetTuple3(pointIndex+1, eigenvectors[1][1][0], eigenvectors[1][1][1], 0);
+                    sampleEps2->SetTuple3(pointIndex+offsetY, eigenvectors[2][1][0], eigenvectors[2][1][1], 0);
+                    sampleEps2->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][1][0], eigenvectors[3][1][1], 0); */
                     
                     prob += computeRidge2D(sample);
                 } else {
@@ -378,25 +421,40 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     //Transforming point data to cell data as we essentially have cell data with a dummy layer
     int cellInd = 0;
     int pointInd = 0;
-    for(int z = 0; z < gridResolution[2]; z++){
+    if(is2D){
         for(int y = 0; y < gridResolution[1]; y++){
             for(int x = 0; x < gridResolution[0]; x++){
-                if(((x % (gridResolution[0]-1)) == 0 and (x != 0)) or ((y % (gridResolution[1]-1)) == 0 and (y != 0)) or ((z % (gridResolution[2]-1)) == 0 and (z != 0))){
-                //if((x == 0) or (y == 0) or (z == 0)){
+                if(((x % (gridResolution[0]-1)) == 0 and (x != 0)) or ((y % (gridResolution[1]-1)) == 0 and (y != 0))){
                     pointInd++;
                     continue;
                 } else {
                     cellProb->SetTuple(cellInd, extrProbability->GetTuple(pointInd));
                     cellInd++;
-                    pointInd++;
+                    pointInd++;  
+                }
+            }
+        }
+    } else {
+        for(int z = 0; z < gridResolution[2]; z++){
+            for(int y = 0; y < gridResolution[1]; y++){
+                for(int x = 0; x < gridResolution[0]; x++){
+                    if(((x % (gridResolution[0]-1)) == 0 and (x != 0)) or ((y % (gridResolution[1]-1)) == 0 and (y != 0)) or ((z % (gridResolution[2]-1)) == 0 and (z != 0))){
+                    //if((x == 0) or (y == 0) or (z == 0)){
+                        pointInd++;
+                        continue;
+                    } else {
+                        cellProb->SetTuple(cellInd, extrProbability->GetTuple(pointInd));
+                        cellInd++;
+                        pointInd++;
+                    }
                 }
             }
         }
     }
     vtkSmartPointer<vtkImageData> celldata = vtkSmartPointer<vtkImageData>::New();
     celldata->CopyStructure(data);
-    //celldata->GetPointData()->AddArray(extrProbability);
-    celldata->GetCellData()->AddArray(cellProb);
+    celldata->GetPointData()->AddArray(extrProbability);
+    //celldata->GetCellData()->AddArray(cellProb);
 
     vtkSmartPointer<vtkImageData> grads = vtkSmartPointer<vtkImageData>::New();
     grads->CopyStructure(data);
@@ -410,6 +468,9 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
         grads->GetPointData()->AddArray(eps3);
         grads->GetPointData()->AddArray(lambda3);
     }
+    /* grads->GetPointData()->AddArray(sampleCell);
+    grads->GetPointData()->AddArray(sampleEps1);
+    grads->GetPointData()->AddArray(sampleEps2); */
 
     vtkInformation *outInfo0 = outputVector->GetInformationObject(0);
     vtkDataObject *output0 = vtkDataObject::SafeDownCast(outInfo0->Get(vtkDataObject::DATA_OBJECT()));

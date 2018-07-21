@@ -203,9 +203,10 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                         value = 1 - dist;
                     } else {
                         //value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
-                        double yDist = sqrt(pow(yPhys, 2));
-                        value = (1 - yDist) + (pow(xPhys, 3) * 0.0001);
-                        value += random_value(re);
+                        //double yDist = sqrt(pow(yPhys, 2));
+                        //value = (1 - yDist) + (pow(xPhys, 3) * 0.0001);
+                        //value += random_value(re);
+                        value = pow((5-y),2);
                         //double value = -fabs(yPhys - 0.5 * sin(xPhys*xPhys / 10.0)); //plotted sinus
 
                         //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
