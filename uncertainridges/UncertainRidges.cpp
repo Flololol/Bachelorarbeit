@@ -146,8 +146,9 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
         sampleEps2->SetTuple(i, zerovec);
     } */
 
+    this->gen.seed(42);
     this->beginning = nanoClock::now(); //clock for random seed and calculation time
-    //Everything now in one pipeline
+    //Every step of the algorithm in one pipeline for every sample
     cout << "Extracting features..." << endl;
     int calcMean = 0;
     #pragma omp parallel for
@@ -364,13 +365,13 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
         if(calcCertain){
             extrProbability->SetTuple1(pointIndex, certainProb);
         } else {
-            if(useRandomSeed){
+            /* if(useRandomSeed){
                 nanoClock::duration d = nanoClock::now() - beginning;
                 unsigned seed = d.count();
                 this->gen.seed(seed);
             } else {
                 this->gen.seed(42);
-            }
+            } */
 
             double prob = 0.0;
             for (int sampleIteration = 0; sampleIteration < numSamples; sampleIteration++){
@@ -378,31 +379,36 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
                 if(is2D){
                     Vector24d normalVec = generateNormalDistributedVec2D();
                     Vector24d sample = decomposition2D * normalVec + meanVector2D;
-                    /* vec2 gradients[4];
-                    mat2 hessians[4];
-                    vec2 secGrads[4];
-                    vec2 eigenvectors[4][2];
-                    computeGradients2D(sample, gradients, hessians, secGrads);
-                    sampleCell->SetTuple3(pointIndex, gradients[0][0], gradients[0][1], 0);
-                    sampleCell->SetTuple3(pointIndex+1, gradients[1][0], gradients[1][1], 0);
-                    sampleCell->SetTuple3(pointIndex+offsetY, gradients[2][0], gradients[2][1], 0);
-                    sampleCell->SetTuple3(pointIndex+offsetY+1, gradients[3][0], gradients[3][1], 0);
-                    for(int i = 0; i < 4; i++){
-                        double eigenvalues[2];
-                        mat2eigenvalues(hessians[i], eigenvalues);
-                        std::sort(eigenvalues, eigenvalues + 2);
-                        mat2realEigenvector(hessians[i], eigenvalues[0], eigenvectors[i][0]);
-                        mat2realEigenvector(hessians[i], eigenvalues[1], eigenvectors[i][1]);
-                    }
-                    sampleEps1->SetTuple3(pointIndex, eigenvectors[0][0][0], eigenvectors[0][0][1], 0);
-                    sampleEps1->SetTuple3(pointIndex+1, eigenvectors[1][0][0], eigenvectors[1][0][1], 0);
-                    sampleEps1->SetTuple3(pointIndex+offsetY, eigenvectors[2][0][0], eigenvectors[2][0][1], 0);
-                    sampleEps1->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][0][0], eigenvectors[3][0][1], 0);
+                    /* if(pointIndex == 10000){
+                        //printSample(sample);
+                        vec2 gradients[4];
+                        mat2 hessians[4];
+                        vec2 secGrads[4];
+                        vec2 eigenvectors[4][2];
+                        computeGradients2D(sample, gradients, hessians, secGrads);
+                        sampleCell->SetTuple3(pointIndex, gradients[0][0], gradients[0][1], 0);
+                        sampleCell->SetTuple3(pointIndex+1, gradients[1][0], gradients[1][1], 0);
+                        sampleCell->SetTuple3(pointIndex+offsetY, gradients[2][0], gradients[2][1], 0);
+                        sampleCell->SetTuple3(pointIndex+offsetY+1, gradients[3][0], gradients[3][1], 0);
+                        for(int i = 0; i < 4; i++){
+                            double eigenvalues[2];
+                            mat2eigenvalues(hessians[i], eigenvalues);
+                            std::sort(eigenvalues, eigenvalues + 2);
+                            mat2realEigenvector(hessians[i], eigenvalues[0], eigenvectors[i][0]);
+                            vec2scal(eigenvectors[i][0], eigenvalues[0], eigenvectors[i][0]);
+                            mat2realEigenvector(hessians[i], eigenvalues[1], eigenvectors[i][1]);
+                            vec2scal(eigenvectors[i][1], eigenvalues[1], eigenvectors[i][1]);
+                        }
+                        sampleEps1->SetTuple3(pointIndex, eigenvectors[0][0][0], eigenvectors[0][0][1], 0);
+                        sampleEps1->SetTuple3(pointIndex+1, eigenvectors[1][0][0], eigenvectors[1][0][1], 0);
+                        sampleEps1->SetTuple3(pointIndex+offsetY, eigenvectors[2][0][0], eigenvectors[2][0][1], 0);
+                        sampleEps1->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][0][0], eigenvectors[3][0][1], 0);
 
-                    sampleEps2->SetTuple3(pointIndex, eigenvectors[0][1][0], eigenvectors[0][1][1], 0);
-                    sampleEps2->SetTuple3(pointIndex+1, eigenvectors[1][1][0], eigenvectors[1][1][1], 0);
-                    sampleEps2->SetTuple3(pointIndex+offsetY, eigenvectors[2][1][0], eigenvectors[2][1][1], 0);
-                    sampleEps2->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][1][0], eigenvectors[3][1][1], 0); */
+                        sampleEps2->SetTuple3(pointIndex, eigenvectors[0][1][0], eigenvectors[0][1][1], 0);
+                        sampleEps2->SetTuple3(pointIndex+1, eigenvectors[1][1][0], eigenvectors[1][1][1], 0);
+                        sampleEps2->SetTuple3(pointIndex+offsetY, eigenvectors[2][1][0], eigenvectors[2][1][1], 0);
+                        sampleEps2->SetTuple3(pointIndex+offsetY+1, eigenvectors[3][1][0], eigenvectors[3][1][1], 0);
+                    } */
                     
                     prob += computeRidge2D(sample);
                 } else {
@@ -439,7 +445,6 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
             for(int y = 0; y < gridResolution[1]; y++){
                 for(int x = 0; x < gridResolution[0]; x++){
                     if(((x % (gridResolution[0]-1)) == 0 and (x != 0)) or ((y % (gridResolution[1]-1)) == 0 and (y != 0)) or ((z % (gridResolution[2]-1)) == 0 and (z != 0))){
-                    //if((x == 0) or (y == 0) or (z == 0)){
                         pointInd++;
                         continue;
                     } else {
@@ -453,8 +458,8 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     }
     vtkSmartPointer<vtkImageData> celldata = vtkSmartPointer<vtkImageData>::New();
     celldata->CopyStructure(data);
-    celldata->GetPointData()->AddArray(extrProbability);
-    //celldata->GetCellData()->AddArray(cellProb);
+    //celldata->GetPointData()->AddArray(extrProbability);
+    celldata->GetCellData()->AddArray(cellProb);
 
     vtkSmartPointer<vtkImageData> grads = vtkSmartPointer<vtkImageData>::New();
     grads->CopyStructure(data);
@@ -509,6 +514,13 @@ bool UncertainRidges::isCloseToEdge(int index){
     }
 
     return isClose;
+}
+
+void UncertainRidges::printSample(Vector24d sample){
+    cout << "Printing sample" << endl;
+    for(int i = 0; i < 24; i++){
+        cout << "[" << i << "]:" << sample[i] << endl;
+    }
 }
 
 Vector80d UncertainRidges::generateNormalDistributedVec(){
@@ -920,7 +932,7 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
     }
 
     int ord[4] = {0,1,3,2};
-    /* for(int i = 0; i < 4; i++){
+    for(int i = 0; i < 4; i++){
         if(signs[ord[i]] != signs[ord[(i + 1) % 4]]){
             mat2 ipolMat;
             vec2 ipolVec;
@@ -955,9 +967,10 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
                 if(ipolEigenvalues[coGradInd] > this->evMin) return 1;
             }
         }
-    } */
+    }
 
-    double unitVecs[2][2][2] = {{{1.0, 0.0},{-1.0, 0.0}},{{0.0, 1.0},{0.0, -1.0}}};
+    //improoved condition for marching cubes but not the desired one
+    /* double unitVecs[2][2][2] = {{{1.0, 0.0},{-1.0, 0.0}},{{0.0, 1.0},{0.0, -1.0}}};
     for(int i = 0; i < 4; i++){
         if(signs[ord[i]] != signs[ord[(i + 1) % 4]]){
             mat2 ipolMat;
@@ -993,9 +1006,8 @@ bool UncertainRidges::computeRidgeLine2D(vec2 *gradients, mat2 *hessians, vec2 *
                     }
                 }
             //}
-
         }
-    }
+    } */
     if(isExtremum > 1){
         return 1;
     } else {

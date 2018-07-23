@@ -202,11 +202,12 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                         double dist = sqrt(pow(xPhys, 2) + pow(yPhys, 2));
                         value = 1 - dist;
                     } else {
-                        //value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
+                        value = sin((2 * M_PI/ (resolution_grid[0] * scaleFactor)) * (((x - resolution_grid[0]/2) + offsetX) * (((y- (resolution_grid[1] / 2)) + offsetY)))); //oscillating field
                         //double yDist = sqrt(pow(yPhys, 2));
                         //value = (1 - yDist) + (pow(xPhys, 3) * 0.0001);
                         //value += random_value(re);
-                        value = pow((5-y),2);
+                        //value = pow((5-y),2);
+                        //value = -(pow(xPhys,2));
                         //double value = -fabs(yPhys - 0.5 * sin(xPhys*xPhys / 10.0)); //plotted sinus
 
                         //double value = xPhys - ((1/6) * pow(y, 2)) + 0.5 * cos(xPhys);
@@ -274,18 +275,18 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                 for(int y = 0; y < resolution_grid[1]; y++){
                     for(int x = 0; x < resolution_grid[0]; x++){
 
-                        double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0]; // - (0.5*M_PI);
-                        //double xPhys = double(x) / double(resolution_grid[0] - 1) * (4*M_PI);
-                        double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1]; // - (0.5*M_PI);
-                        //double yPhys = double(y) / double(resolution_grid[1] - 1) * (4*M_PI);
-                        double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * domRange[2] + origin_grid[2]; // - (0.5*M_PI);
-                        //double zPhys = double(z) / double(resolution_grid[2] - 1) * (4*M_PI);
+                        //double xPhys = double(x + offsetX) / double(resolution_grid[0] - 1) * domRange[0] + origin_grid[0]; // - (0.5*M_PI);
+                        double xPhys = double(x+offsetX) / double(resolution_grid[0] - 1) * (4*M_PI);
+                        //double yPhys = double(y + offsetY) / double(resolution_grid[1] - 1) * domRange[1] + origin_grid[1]; // - (0.5*M_PI);
+                        double yPhys = double(y+offsetY) / double(resolution_grid[1] - 1) * (4*M_PI);
+                        //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * domRange[2] + origin_grid[2]; // - (0.5*M_PI);
+                        double zPhys = double(z+offsetZ) / double(resolution_grid[2] - 1) * (4*M_PI);
                         //double xPhys = double(x) / double(resolution_grid[0] - 1) * 6 - 3.;
                         //double yPhys = double(y) / double(resolution_grid[1] - 1) * 6 - 3.;
                         //double zPhys = double(z + offsetZ) / double(resolution_grid[2] - 1) * (8 * M_PI);
-                        xPhys += offsetX;
+                        /* xPhys += offsetX;
                         yPhys += offsetY;
-                        zPhys += offsetZ;
+                        zPhys += offsetZ; */
                         double value = 0.0;
 
                         if(isotro){
@@ -332,7 +333,7 @@ int UncertainScalarFields::RequestData(vtkInformation *vtkNotUsed(request),
                             value = cos(xPhys) + cos(yPhys) + cos(zPhys); //standard 3D cos set
                             //double value = (cos(((4*M_PI)/resolution_grid[0])*x) + cos(((4*M_PI)/resolution_grid[1])*y) + cos(((4*M_PI)/resolution_grid[2])*z)) + random_value(re);
                             //double value = (A * exp(-zPhys * ((pow((xPhys - xNull), 2)/2*pow(sigmaX, 2)) + (pow((yPhys - yNull), 2)/2*pow(sigmaY, 2))))); //2D gauss glocke in 3D
-
+                            //value = -(pow(xPhys, 2));
                             //double value = cos(zPhys);
                         }
 

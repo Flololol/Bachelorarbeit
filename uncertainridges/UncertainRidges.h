@@ -135,6 +135,7 @@ private:
     bool calcCertain;
 
     bool isCloseToEdge(int index);
+    void printSample(Vector24d sample);
     Vector80d generateNormalDistributedVec();
     Vector24d generateNormalDistributedVec2D();
     void computeGradients(Vector80d sampleVector, vec3 *gradients, mat3 *hessians, vec3 *secGrads, bool calcSec=false);
