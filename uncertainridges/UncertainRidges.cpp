@@ -71,7 +71,7 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
     
     this->bounds = data->GetBounds(); 
     this->spacing = data->GetSpacing();
-    this->spaceMag = vec3mag(spacing);
+    //this->spaceMag = vec3mag(spacing);
     this->gridResolution = data->GetDimensions();
     this->arrayLength = gridResolution[0] * gridResolution[1] * gridResolution[2];
     this->offsetY = gridResolution[0];
@@ -104,8 +104,10 @@ int UncertainRidges::RequestData(vtkInformation *, vtkInformationVector **inputV
 
     if((bounds[5] - bounds[4]) == 0){
         is2D = true;
+        this->spaceMag = (spacing[0] + spacing[1]) / double(2);
     } else {
         is2D = false;
+        this->spaceMag = (spacing[0] + spacing[1] + spacing[2]) / double(3);
         eps3 = vtkSmartPointer<vtkDoubleArray>::New();
         eps3->SetName("eps3");
         eps3->SetNumberOfComponents(3);
@@ -1052,7 +1054,7 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
     }
 
     for(int i = 0; i < 4; i++){
-        vec2 nrmVec;
+        /* vec2 nrmVec;
         vec2 nrmEV;
         vec2nrm(gradients[i], nrmVec);
         vec2nrm(eigenvectors[i], nrmEV);
@@ -1062,7 +1064,10 @@ double UncertainRidges::computeRidgeLine2DTest(vec2 *gradients, mat2 *hessians, 
         if(gradMag == 0.0) gradMag = 0.001;
 
         double lookupScale = double(1) / gradMag;
-        double evScale = fabs(eigenvalues[i] * (this->spaceMag * lookupScale));
+        double evScale = fabs(eigenvalues[i] * (this->spaceMag * lookupScale)); */
+
+        double dotP = fabs(vec3dot(gradients[i], eigenvectors[i]));
+        double evScale = fabs(eigenvalues[i] * this->spaceMag);
 
         if(evScale > dotP){
             if(this->extremum == 0){
@@ -1224,20 +1229,20 @@ double UncertainRidges::computeRidgeSurfaceTest(vec3 *gradients, mat3 *hessians)
     }
 
     for(int i = 0; i < 8; i++){
-        vec3 nrmVec;
+        /* vec3 nrmVec;
         vec3 nrmEV;
         vec3nrm(gradients[i], nrmVec);
         vec3nrm(eigenvectors[i], nrmEV);
-
         double dotP = fabs(vec3dot(nrmVec, nrmEV));
         double gradMag = vec3mag(gradients[i]);
         if(gradMag == 0.0) gradMag = 0.0001;
-
         double lookupScale = double(1) / gradMag;
-        double evScale = fabs(eigenvalues[i] * this->spaceMag * lookupScale);
+        double evScale = fabs(eigenvalues[i] * this->spaceMag * lookupScale);*/
+        
+        double dotP = fabs(vec3dot(gradients[i], eigenvectors[i]));
+        double evScale = fabs(eigenvalues[i] * this->spaceMag);
 
         if(evScale > dotP){
-
             if(this->extremum == 0){
                 if(eigenvalues[i] < -(this->evMin)) isExtremum++;
             } else if(this->extremum == 1){
